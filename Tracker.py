@@ -1,9 +1,14 @@
-from Proxy import Proxy
+import numpy as np
 
+from Project2_P2P.PClient import PClient
+from Proxy import Proxy
+import pickle
 
 class Tracker:
     def __init__(self, upload_rate=10000, download_rate=10000, port=None):
         self.proxy = Proxy(upload_rate, download_rate, port)
+        self.file = {}
+        # file=[{file1_1:chunk1....}{file1_2:......}]
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -29,7 +34,40 @@ class Tracker:
         Start the Tracker and it will work forever
         :return: None
         """
-        pass
+        while True:
+            msg, frm = self.__recv__()
+            msg = pickle.loads(msg)
+            #trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
+            if msg["identifier"] == "REGISTER":
+                fid = msg["fid"]
+                if fid not in self.file.keys():
+                    self.file[fid] = {}
+                fcid=msg["fcid"]
+                for item in fcid:
+                    if item not in self.file[fid].keys():
+                        self.file[fid][item]=[]
+                    pclient=(frm,msg["rate"])
+                    self.file[fid][item].append(pclient)
+                self.response("Success", frm)
+
+            # elif msg.startswith("QUERY:"):
+            #     # Client can use this to check who has the specific file with the given fid
+            #     fid = msg[6:]
+            #     result = []
+            #     for c in self.file[fid]:
+            #         result.append(c)
+            #     self.response("[%s]" % (", ".join(result)), frm)
+            #
+            # elif msg.startswith("CANCEL:"):
+            #     # Client can use this file to cancel the share of a file
+            #     fid = msg[7:]
+            #     if client in self.files[fid]:
+            #         self.files[fid].remove(client)
+            #     self.response("Success", frm)
+
+
+    def response(self, data: str, address: (str, int)):
+        self.__send__(data.encode(), address)
 
 
 if __name__ == '__main__':

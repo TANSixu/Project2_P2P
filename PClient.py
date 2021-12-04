@@ -66,7 +66,7 @@ class PClient:
         # print(len(content))
         trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
         msg = pickle.dumps(trans)
-        self.__send__(msg, tracker_address)
+        self.__send__(msg, self.tracker)
         # pass
 
         """
