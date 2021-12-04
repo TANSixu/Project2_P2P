@@ -1,5 +1,7 @@
 from Proxy import Proxy
-
+from hashlib import md5
+import numpy as np
+import pickle
 
 class PClient:
     def __init__(self, tracker_addr: (str, int), proxy=None, port=None, upload_rate=0, download_rate=0):
@@ -11,6 +13,8 @@ class PClient:
         """
         Start your additional code below!
         """
+        self.upload_rate = upload_rate
+        self.download_rate = download_rate
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -39,11 +43,31 @@ class PClient:
                  download this file, such as a hash code of it
         """
         fid = None
+        chunk_size = 128*1024
         """
         Start your code below!
         """
+        with open(file_path, "rb") as file:
+            content = file.read()
 
-        pass
+        chunk_num = int(np.ceil(len(content)/chunk_size))
+        fid = md5(content).hexdigest()
+        chunks = []
+        fcid = []
+        for i in range(chunk_num):
+            left_bound = i*chunk_size
+            right_bound = min((i+1)*chunk_size, len(content))
+            tmp_chunk = content[left_bound: right_bound]
+            tmp_fcid = md5(tmp_chunk).hexdigest()
+            fcid.append(tmp_fcid)
+            chunks.append(tmp_chunk[:])
+
+        # print(len(chunks[0]), len(chunks[1]))
+        # print(len(content))
+        trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
+        msg = pickle.dumps(trans)
+        self.__send__(msg, tracker_address)
+        # pass
 
         """
         End of your code
@@ -94,4 +118,7 @@ class PClient:
 
 
 if __name__ == '__main__':
-    pass
+    tracker_address = ("127.0.0.1", 10086)
+    B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
+    B.register("./test_files/alice.txt")
+    # pass

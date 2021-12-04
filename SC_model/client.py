@@ -61,7 +61,8 @@ if __name__ == '__main__':
 
     for i, rate in enumerate(rates):
         c = Client("c%d" % (i + 1), rate)
-        threads.append(Thread(target=client_download, args=[c]))
+        print(c)
+        # threads.append(Thread(target=client_download, args=[c]))
 
-    for thread in threads:
-        thread.start()
+    # for thread in threads:
+    #     thread.start()
