@@ -1,3 +1,5 @@
+import time
+
 from Proxy import Proxy
 from hashlib import md5
 import numpy as np
@@ -74,6 +76,21 @@ class PClient:
         """
         return fid
 
+    def register_chunk(self, fid, fcid):
+        """
+
+        :param fid:
+        :param fcid:
+        :return:
+
+        #TODO: add feed back info in the return value
+        # NOTE: This the input value should be a str, not a list!!!!!!
+        """
+
+        trans = {"identifier":"REGISTER", "fid": fid, "fcid": [fcid], "rate": self.upload_rate}
+        msg = pickle.dumps(trans)
+        self.__send__(msg, self.tracker)
+
     def download(self, fid) -> bytes:
         """
         Download a file from P2P network using its unique identification
@@ -85,7 +102,7 @@ class PClient:
         Start your code below!
         """
 
-        pass
+
 
         """
         End of your code
@@ -120,5 +137,11 @@ class PClient:
 if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    B.register("./test_files/alice.txt")
+    id = B.register("./test_files/alice.txt")
+    msg, frm = B.__recv__()
+    print(msg, frm)
+    time.sleep(3)
+    B.register_chunk(id, "testtest123456")
+    msg, frm = B.__recv__()
+    print(msg, frm)
     # pass

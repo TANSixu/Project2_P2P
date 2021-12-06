@@ -1,6 +1,6 @@
 import numpy as np
 
-from Project2_P2P.PClient import PClient
+from PClient import PClient
 from Proxy import Proxy
 import pickle
 
@@ -49,7 +49,7 @@ class Tracker:
                     pclient=(frm,msg["rate"])
                     self.file[fid][item].append(pclient)
                 self.response("Success", frm)
-
+            print(self.file)
             # elif msg.startswith("QUERY:"):
             #     # Client can use this to check who has the specific file with the given fid
             #     fid = msg[6:]
