@@ -4,6 +4,9 @@ from Proxy import Proxy
 from hashlib import md5
 import numpy as np
 import pickle
+from queue import SimpleQueue
+from threading import Thread
+
 
 class PClient:
     def __init__(self, tracker_addr: (str, int), proxy=None, port=None, upload_rate=0, download_rate=0):
@@ -17,6 +20,11 @@ class PClient:
         """
         self.upload_rate = upload_rate
         self.download_rate = download_rate
+        self.file = {}  # key: fid, fcid ; values: corresponding bytes
+        self.tracker_buffer = SimpleQueue()  # message from tracker ()
+        self.peer_qeury_buffer = SimpleQueue()  # message from other PClient (other PClient query you)
+        self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
+        Thread(target=self.listening()).start()  # thread to receive and divide message
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -45,30 +53,32 @@ class PClient:
                  download this file, such as a hash code of it
         """
         fid = None
-        chunk_size = 128*1024
+        chunk_size = 128 * 1024
         """
         Start your code below!
         """
         with open(file_path, "rb") as file:
             content = file.read()
 
-        chunk_num = int(np.ceil(len(content)/chunk_size))
+        chunk_num = int(np.ceil(len(content) / chunk_size))
         fid = md5(content).hexdigest()
         chunks = []
+        self.file[fid] = {}
         fcid = []
         for i in range(chunk_num):
-            left_bound = i*chunk_size
-            right_bound = min((i+1)*chunk_size, len(content))
+            left_bound = i * chunk_size
+            right_bound = min((i + 1) * chunk_size, len(content))
             tmp_chunk = content[left_bound: right_bound]
             tmp_fcid = md5(tmp_chunk).hexdigest()
             fcid.append(tmp_fcid)
             chunks.append(tmp_chunk[:])
-
+            self.file[fid][tmp_fcid] = tmp_chunk
         # print(len(chunks[0]), len(chunks[1]))
         # print(len(content))
-        trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
+        trans = {"identifier": "REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
+
         # pass
 
         """
@@ -87,7 +97,7 @@ class PClient:
         # NOTE: This the input value should be a str, not a list!!!!!!
         """
 
-        trans = {"identifier":"REGISTER", "fid": fid, "fcid": [fcid], "rate": self.upload_rate}
+        trans = {"identifier": "REGISTER", "fid": fid, "fcid": [fcid], "rate": self.upload_rate}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
 
@@ -101,8 +111,34 @@ class PClient:
         """
         Start your code below!
         """
+        trans = {"identifier": "QUERY", "fid": fid}
+        msg = pickle.dumps(trans)
+        self.__send__(msg, self.tracker)
+        answer, _ = self.message_buffer.get()
+        answer = pickle.loads(answer)
+        # answer format:
+        # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
+        # if download chunk from current fastest source success,we should register this chunk
+        chunk_list = answer.keys()
+        chunk_queue = SimpleQueue()
+        for x in chunk_list:
+            chunk_queue.put(x)
+        fast = 0
+        fast_index = 0
+        while not chunk_queue.empty():
+            fcid = chunk_queue.get()
+            transfer = {"identifier": "QUERY_PEER", "fcid": fcid}
+            for index, x in enumerate(answer[fcid]):
+                if x[1] > fast:
+                    fast = x[1]
+                    fast_index = index
+            msg_new = pickle.dumps(transfer)
+            self.__send__(msg_new, answer[fcid][fast_index][0])
 
+            message, addr = self.recv_from_buffer(self.peer_respond_buffer,3)
+
+        # if source canceled or closed,we should ask the tracker to update source
 
         """
         End of your code
@@ -139,16 +175,44 @@ class PClient:
         """
         self.proxy.close()
 
+    def listening(self):
+        """
+        listening to other PClient's Query,and respond answer
+        when self.close() or all the local files are canceled , kill the threading.
+        :return:
+        """
+        while True:
+            msg, frm = self.__recv__()
+            msg = pickle.loads(msg)
+            if frm == self.tracker:  # message from tracker
+                self.tracker_buffer.put((msg, frm))
+            elif msg["identifier"] == "QUERY_PEER":  # message from other PClient
+                self.peer_qeury_buffer.put((msg, frm))
+            else:
+                self.peer_respond_buffer.put((msg, frm))
+
+    def recv_from_buffer(self, buffer,timeout=None) -> (bytes, (str, int)): # choose one buffer from three to get a top message
+        t = time.time()
+        while not timeout or time.time() - t < timeout:
+            if not buffer.empty():
+                return buffer.get()
+            time.sleep(0.000001)
+        raise TimeoutError
+
 
 if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    print(B.proxy.port)
-    # id = B.register("./test_files/alice.txt")
+    C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
+    id = B.register("./test_files/alice.txt")
+    id1 = C.register("./test_files/alice.txt")
+    msg, frm = B.__recv__()
+    msg1, frm1 = C.__recv__()
+    print(msg, frm)
+    print(msg1, frm1)
+    time.sleep(3)
+    B.register_chunk(id, "testtest123456")
     msg, frm = B.__recv__()
     print(msg, frm)
-    # time.sleep(3)
-    # B.register_chunk(id, "testtest123456")
-    # msg, frm = B.__recv__()
-    # print(msg, frm)
+    files = B.download(id)
     # pass
