@@ -109,6 +109,12 @@ class PClient:
         """
         return data
 
+
+    def download_chunk(self, fid, fcid):
+        trans = {"identifier": "GET_CHUNK", "fid": fid, "fcid": [fcid]}
+        msg = pickle.dumps(trans)
+        self.__send__(msg, self.tracker)
+
     def cancel(self, fid):
         """
         Stop sharing a specific file, others should be unable to get this file from this client any more
@@ -137,11 +143,12 @@ class PClient:
 if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    id = B.register("./test_files/alice.txt")
+    print(B.proxy.port)
+    # id = B.register("./test_files/alice.txt")
     msg, frm = B.__recv__()
     print(msg, frm)
-    time.sleep(3)
-    B.register_chunk(id, "testtest123456")
-    msg, frm = B.__recv__()
-    print(msg, frm)
+    # time.sleep(3)
+    # B.register_chunk(id, "testtest123456")
+    # msg, frm = B.__recv__()
+    # print(msg, frm)
     # pass
