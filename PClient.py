@@ -22,7 +22,7 @@ class PClient:
         self.download_rate = download_rate
         self.file = {}  # key: fid, fcid ; values: corresponding bytes
         self.tracker_buffer = SimpleQueue()  # message from tracker ()
-        self.peer_qeury_buffer = SimpleQueue()  # message from other PClient (other PClient query you)
+        self.peer_query_buffer = SimpleQueue()  # message from other PClient (other PClient query you)
         self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
         Thread(target=self.listening()).start()  # thread to receive and divide message
 
@@ -114,7 +114,7 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-        answer, _ = self.message_buffer.get()
+        answer, _ = self.tracker_buffer.get()
         answer = pickle.loads(answer)
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
@@ -187,7 +187,7 @@ class PClient:
             if frm == self.tracker:  # message from tracker
                 self.tracker_buffer.put((msg, frm))
             elif msg["identifier"] == "QUERY_PEER":  # message from other PClient
-                self.peer_qeury_buffer.put((msg, frm))
+                self.peer_query_buffer.put((msg, frm))
             else:
                 self.peer_respond_buffer.put((msg, frm))
 
