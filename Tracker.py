@@ -74,12 +74,18 @@ class Tracker:
                 ans = pickle.dumps(result)
                 self.__send__(ans, frm)
             #
-            # elif msg.startswith("CANCEL:"):
-            #     # Client can use this file to cancel the share of a file
-            #     fid = msg[7:]
-            #     if client in self.files[fid]:
-            #         self.files[fid].remove(client)
-            #     self.response("Success", frm)
+            elif msg["identifier"] == "CANCEL:":
+                # Client can use this file to cancel the share of a file
+                #  # trans = {"identifier":"CANCEL", "fid": fid, "fcid": fcid }
+                fid = msg["fid"]
+                fcid = msg["fcid"]
+                registered_chunk = self.file[fid]
+                for trunk in fcid:
+                    for client in registered_chunk[trunk]:
+                        if client[0] == frm:
+                            registered_chunk[trunk].remove(client)
+                self.response("Success", frm)
+
 
     def response(self, data: str, address: (str, int)):
         self.__send__(data.encode(), address)
