@@ -21,10 +21,17 @@ class PClient:
         self.upload_rate = upload_rate
         self.download_rate = download_rate
         self.file = {}  # key: fid, fcid ; values: corresponding bytes
-        self.tracker_buffer = SimpleQueue()  # message from tracker ()
+
+        # self.tracker_buffer = SimpleQueue()  # message from tracker ()
+        self.tracker_buffer = {}  # key:fid value:simpleQueue
+
         self.peer_query_buffer = SimpleQueue()  # message from other PClient (other PClient query you)
-        self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
+
+        # self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
+        self.peer_respond_buffer = {}  # key = fcid value= simplequeue
+
         Thread(target=self.listening()).start()  # thread to receive and divide message
+        Thread(target=self.provide_to_peer()).start()  # thread to provide trunk to peer
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -52,7 +59,7 @@ class PClient:
         :return: fid, which is a unique identification of the shared file and can be used by other PClients to
                  download this file, such as a hash code of it
         """
-        fid = None
+        # fid = None
         chunk_size = 128 * 1024
         """
         Start your code below!
@@ -78,7 +85,7 @@ class PClient:
         trans = {"identifier": "REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-
+        #to judge whether it is successful??
         # pass
 
         """
@@ -114,7 +121,7 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-        answer, _ = self.tracker_buffer.get()
+        answer, _ = self.tracker_buffer[fid].get()
         answer = pickle.loads(answer)
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
@@ -128,16 +135,16 @@ class PClient:
         fast_index = 0
         while not chunk_queue.empty():
             fcid = chunk_queue.get()
-            transfer = {"identifier": "QUERY_PEER", "fcid": fcid}
+            # add fid
+            transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid}
             for index, x in enumerate(answer[fcid]):
                 if x[1] > fast:
                     fast = x[1]
                     fast_index = index
             msg_new = pickle.dumps(transfer)
             self.__send__(msg_new, answer[fcid][fast_index][0])
-
-            message, addr = self.recv_from_buffer(self.peer_respond_buffer,3)
-
+            message, addr = self.peer_respond_buffer[fcid].get()  # self.recv_from_buffer(self.peer_respond_buffer,3)
+            # register the file！
         # if source canceled or closed,we should ask the tracker to update source
 
         """
@@ -145,11 +152,10 @@ class PClient:
         """
         return data
 
-
-    def download_chunk(self, fid, fcid):
-        trans = {"identifier": "GET_CHUNK", "fid": fid, "fcid": [fcid]}
-        msg = pickle.dumps(trans)
-        self.__send__(msg, self.tracker)
+    # def download_chunk(self, fid, fcid):
+    #     trans = {"identifier": "GET_CHUNK", "fid": fid, "fcid": [fcid]}
+    #     msg = pickle.dumps(trans)
+    #     self.__send__(msg, self.tracker)
 
     def cancel(self, fid):
         """
@@ -184,20 +190,38 @@ class PClient:
         while True:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
-            if frm == self.tracker:  # message from tracker
-                self.tracker_buffer.put((msg, frm))
+            if msg["identifier"] == "QUERY_RESULT":  # message from tracker
+                fid = msg["fid"]
+                if fid not in self.tracker_buffer:
+                    self.tracker_buffer[fid] = SimpleQueue
+                self.tracker_buffer[fid].put((msg, frm))
             elif msg["identifier"] == "QUERY_PEER":  # message from other PClient
                 self.peer_query_buffer.put((msg, frm))
-            else:
-                self.peer_respond_buffer.put((msg, frm))
+            elif msg["identifier"] == "PEER_RESPOND":
+                fcid = msg["fcid"]
+                if fcid not in self.peer_respond_buffer.keys():
+                    self.peer_respond_buffer[fcid] = SimpleQueue()
+                self.peer_respond_buffer[fcid].put((msg, frm))
 
-    def recv_from_buffer(self, buffer,timeout=None) -> (bytes, (str, int)): # choose one buffer from three to get a top message
+    def recv_from_buffer(self, buffer, timeout=None) -> (
+    bytes, (str, int)):  # choose one buffer from three to get a top message
         t = time.time()
         while not timeout or time.time() - t < timeout:
             if not buffer.empty():
                 return buffer.get()
             time.sleep(0.000001)
         raise TimeoutError
+
+    def provide_to_peer(self):
+        while not self.peer_query_buffer.empty():
+            # transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid}
+            transfer, frm = self.peer_query_buffer.get()
+            fid = transfer["fid"]
+            fcid = transfer["fcid"]
+            result = self.file[fid][fcid]
+            transfer = {"identifier": "PEER_RESPOND", "fid": fid, "fcid": fcid, "result": result}
+            msg = pickle.dumps(transfer)
+            self.__send__(msg, frm)
 
 
 if __name__ == '__main__':

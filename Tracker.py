@@ -71,19 +71,20 @@ class Tracker:
                 #     result[c].append(values[fast_index][0][1])
                 #     result[c].append(values[fast_index][1])
                 # #self.response("[%s]" % (", ".join(result)), frm)
-                ans = pickle.dumps(result)
+                transfer ={"identifier":"QUERY_RESULT","fid":fid,"result":result}
+                ans = pickle.dumps(transfer)
                 self.__send__(ans, frm)
             #
             elif msg["identifier"] == "CANCEL:":
                 # Client can use this file to cancel the share of a file
-                #  # trans = {"identifier":"CANCEL", "fid": fid, "fcid": fcid }
+                #  # trans = {"identifier":"CANCEL", "fid": fid}
                 fid = msg["fid"]
-                fcid = msg["fcid"]
                 registered_chunk = self.file[fid]
-                for trunk in fcid:
-                    for client in registered_chunk[trunk]:
+                for chunk in registered_chunk.keys():
+                    for client in registered_chunk[chunk]:
                         if client[0] == frm:
-                            registered_chunk[trunk].remove(client)
+                            registered_chunk[chunk].remove(client)
+                #TODO: how to deal with this!
                 self.response("Success", frm)
 
 
