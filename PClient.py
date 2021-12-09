@@ -186,7 +186,7 @@ class PClient:
         Completely stop the client, this client will be unable to share or download files any more
         :return: You can design as your need
         """
-        for file in self.myfile:
+        for file in self.my_file:
             self.cancel(file)
         """
         End of your code
