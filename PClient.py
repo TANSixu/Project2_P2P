@@ -31,7 +31,9 @@ class PClient:
         self.peer_respond_buffer = {}  # key = fcid value= simplequeue
 
         Thread(target=self.listening()).start()  # thread to receive and divide message
-        Thread(target=self.provide_to_peer()).start()  # thread to provide trunk to peer
+        self.provide = Thread(target=self.provide_to_peer()) # thread to provide trunk to peer
+        self.provide.start()
+        self.my_file = []  #records of my_file
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -164,6 +166,15 @@ class PClient:
         :return: You can design as your need
         """
 
+        #TODO: whether to cancel a chunk? Though fid can locate all chunks at the tracker side.
+        #TODO: glue all chunks when receiving finishes.
+        #TODO: add to my_file after receive.
+        #TODO: whether to stop the provice thread? Possibly multiple files shared?
+        trans = {"identifier": "CANCEL", "fid": fid}
+        msg = pickle.dumps(trans)
+        self.__send__(msg, self.tracker)
+        self.provide.join()  #stop the provide thread.
+
         pass
 
         """
@@ -175,7 +186,8 @@ class PClient:
         Completely stop the client, this client will be unable to share or download files any more
         :return: You can design as your need
         """
-        pass
+        for file in self.myfile:
+            self.cancel(file)
         """
         End of your code
         """
@@ -211,6 +223,7 @@ class PClient:
                 return buffer.get()
             time.sleep(0.000001)
         raise TimeoutError
+
 
     def provide_to_peer(self):
         while not self.peer_query_buffer.empty():
