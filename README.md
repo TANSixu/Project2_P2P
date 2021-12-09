@@ -8,5 +8,7 @@ Our work plan:
 |----|----
 |Register|*Done on 12.4*
 |Register_chunk|*Done on 12.7*
-|Download|Before 12.10
+|Download|*Done on 12.8*
+|Cancel Close|*Done on 12.9*
+|Glue all chunks|Possibly 12.10
 |Optimization|Not start
