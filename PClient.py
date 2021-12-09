@@ -143,7 +143,7 @@ class PClient:
                     fast_index = index
             msg_new = pickle.dumps(transfer)
             self.__send__(msg_new, answer[fcid][fast_index][0])
-            message, addr = self.peer_respond_buffer[fcid].get()  # self.recv_from_buffer(self.peer_respond_buffer,3)
+            message, addr =  self.recv_from_buffer(self.peer_respond_buffer[fcid],3)
             # register the file！
         # if source canceled or closed,we should ask the tracker to update source
 
