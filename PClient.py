@@ -30,9 +30,9 @@ class PClient:
         # self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
         self.peer_respond_buffer = {}  # key = fcid value= simplequeue
 
-        Thread(target=self.listening()).start()  # thread to receive and divide message
-        self.provide = Thread(target=self.provide_to_peer()) # thread to provide trunk to peer
-        self.provide.start()
+        # Thread(target=self.listening(), args=()).start()  # thread to receive and divide message
+        self.provide = Thread(target=self.provide_to_peer(), args=()) # thread to provide trunk to peer
+        # self.provide.start()
         self.my_file = []  #records of my_file
 
     def __send__(self, data: bytes, dst: (str, int)):
@@ -86,7 +86,9 @@ class PClient:
         # print(len(content))
         trans = {"identifier": "REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
         msg = pickle.dumps(trans)
-        self.__send__(msg, self.tracker)
+        # self.__send__(msg, self.tracker)
+
+        print(len(msg))
         #to judge whether it is successful??
         # pass
 
@@ -173,7 +175,7 @@ class PClient:
         trans = {"identifier": "CANCEL", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-        self.provide.join()  #stop the provide thread.
+        # self.provide.join()  #stop the provide thread.
 
         pass
 
@@ -188,6 +190,7 @@ class PClient:
         """
         for file in self.my_file:
             self.cancel(file)
+        self.provide.join()
         """
         End of your code
         """
@@ -242,14 +245,18 @@ if __name__ == '__main__':
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     id = B.register("./test_files/alice.txt")
-    id1 = C.register("./test_files/alice.txt")
-    msg, frm = B.__recv__()
-    msg1, frm1 = C.__recv__()
-    print(msg, frm)
-    print(msg1, frm1)
-    time.sleep(3)
-    B.register_chunk(id, "testtest123456")
-    msg, frm = B.__recv__()
-    print(msg, frm)
-    files = B.download(id)
+    # id1 = C.register("./test_files/alice.txt")
+    # msg, frm = B.__recv__()
+    # msg1, frm1 = C.__recv__()
+    # print(msg, frm)
+    # print(msg1, frm1)
+    # time.sleep(3)
+    # B.register_chunk(id, "testtest123456")
+    # msg, frm = B.__recv__()
+    # print(msg, frm)
+    # files = B.download(id)
     # pass
+
+
+# TODO: 1. random chunks, 2. 不发也回报文 3. tit for tat   3. 速率变化发给tracker  4. 如果只有A有，连续请求，一定概率接收。
+# TODO: Sefl-adaptive intellegent  chunks size
