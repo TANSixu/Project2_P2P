@@ -31,6 +31,7 @@ class PClient:
         self.peer_respond_buffer = {}  # key = fcid value= simplequeue
 
         self.priority = PriorityQueue()
+        self.max_try_download_length = 3
         self.max_accept_length = 4
         self.accept_rate = 0.3
         # Thread(target=self.listening(), args=()).start()  # thread to receive and divide message
@@ -63,7 +64,7 @@ class PClient:
         var = self.upload_rate
         while True:
             if var != self.upload_rate:  # var changed
-                trans = {"identifier": "CHANGE_RATE","rate": self.upload_rate}
+                trans = {"identifier": "CHANGE_RATE", "rate": self.upload_rate}
                 msg = pickle.dumps(trans)
                 self.__send__(msg, self.tracker)
                 var = self.upload_rate  # update pre
@@ -94,7 +95,7 @@ class PClient:
             left_bound = i * chunk_size
             right_bound = min((i + 1) * chunk_size, len(content))
             tmp_chunk = content[left_bound: right_bound]
-            tmp_fcid = md5(tmp_chunk).hexdigest()
+            tmp_fcid = "{fid}{i}".format(fid=fid, i=i)
             fcid.append(tmp_fcid)
             chunks.append(tmp_chunk[:])
             self.file[fid][tmp_fcid] = tmp_chunk
@@ -141,47 +142,93 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-        answer, _ = self.tracker_buffer[fid].get()
-        answer = pickle.loads(answer)
+        answer1, _ = self.tracker_buffer[fid].get()
+        answer1 = pickle.loads(answer1)
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
         # if download chunk from current fastest source success,we should register this chunk
-        chunk_list = answer.keys()
+        chunk_list = answer1.keys()
+
         # random chunk
-        index = []
-        for i in range(chunk_list.qsize()):
-            index.append(i)
-        for i in range(chunk_list.qsize()):
-            x = int(random() * chunk_list.qsize())
-            temp = index[x]
-            index[x] = index[i]
-            index[i] = temp
+        random.shuffle(chunk_list)
         chunk_queue = SimpleQueue()
         for i in range(chunk_list.qsize()):
-            chunk_queue.put([index[i], chunk_list[i]])
+            chunk_queue.put(chunk_list[i])
 
         fast = 0
         fast_index = 0
         while not chunk_queue.empty():
             fcid = chunk_queue.get()
             # add fid
+            tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
+            msg = pickle.dumps(tran)
+            self.__send__(msg, self.tracker)
+            answer, _ = self.tracker_buffer[fcid].get()
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
-            for index, x in enumerate(answer[fcid]):
-                if x[1] > fast:
-                    fast = x[1]
-                    fast_index = index
+            answer.sort(key=lambda x: x[1])
             msg_new = pickle.dumps(transfer)
-            self.__send__(msg_new, answer[fcid][fast_index][0])
-            message, addr = self.recv_from_buffer(self.peer_respond_buffer[fcid], 3)
+            self.__send__(msg_new, answer[fcid][0][0])
+            index = 1
+            cnt = 0
+            message = {}
+            while True:
+                try:
+                    message1, addr = self.recv_from_buffer(self.peer_respond_buffer[fcid], 3)
+                    message = pickle.loads(message1)
+                    if message["state"] == "success":
+                        break
+                    else:
+                        if cnt < self.max_try_download_length:
+                            transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
+                                        "upload_rate": self.upload_rate}
+                            msg_new = pickle.dumps(transfer)
+                            self.__send__(msg_new, answer[fcid][index % len(answer)][0])
+                            index += 1
+                            cnt += 1
+                        else:
+                            cnt = 0
+                            index = 1
+                            tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
+                            msg = pickle.dumps(tran)
+                            self.__send__(msg, self.tracker)
+                            answer, _ = self.tracker_buffer[fcid].get()
+                            answer = pickle.loads(answer)
+                            transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
+                                        "upload_rate": self.upload_rate}
+                            answer.sort(key=lambda x: x[1])
+                            msg_new = pickle.dumps(transfer)
+                            self.__send__(msg_new, answer[fcid][0][0])
+                except TimeoutError:
+
+                    transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
+                                "upload_rate": self.upload_rate}
+                    msg_new = pickle.dumps(transfer)
+                    self.__send__(msg_new, answer[fcid][index % len(answer)][0])
+                    index += 1
             # register the file！
             # TODO: glue all chunks when receiving finishes.
             # TODO: add to my_file after receive.
-        # if source canceled or closed,we should ask the tracker to update source
+            self.register_chunk(fid, fcid)
+            self.file[fid][fcid] = message["result"]
+
+        result = []
+        for fcid in self.file[fid].keys():
+            chunk = self.file[fid][fcid]
+            result.append((fcid, chunk))
+        result.sort(key=lambda x: x[0])
+        data = bytes()
+        for x in result:
+            data = data + x[1]
+
+        fo = open("{fid}.txt".format(fid=fid), "wb")
+        fo.write(data)
+        fo.close()
 
         """
         End of your code
         """
+
         return data
 
     # def download_chunk(self, fid, fcid):
@@ -265,6 +312,7 @@ class PClient:
             if self.priority.qsize() < self.max_accept_length:
                 upload_rate = transfer["upload_rate"]
                 self.priority.put([upload_rate, frm])
+                # response
             else:
                 least_frm = self.priority.get(0)
                 if least_frm[0] < transfer["upload_rate"]:
@@ -287,6 +335,7 @@ class PClient:
                         msg = pickle.dumps(transfer)
                         self.__send__(msg, frm)
                     else:
+                        # put it back
                         transfer = {"identifier": "PEER_RESPOND", "state": "fail"}
                         msg = pickle.dumps(transfer)
                         self.__send__(msg, frm)
