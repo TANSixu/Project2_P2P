@@ -1,5 +1,5 @@
 import time
-from random import random
+import random
 from Proxy import Proxy
 from hashlib import md5
 import numpy as np
@@ -15,31 +15,24 @@ class PClient:
         else:
             self.proxy = Proxy(upload_rate, download_rate, port)  # Do not modify this line!
         self.tracker = tracker_addr
-        """
-        Start your additional code below!
-        """
+
         self.upload_rate = upload_rate
         self.download_rate = download_rate
         self.file = {}  # key: fid, fcid ; values: corresponding bytes
-
-        # self.tracker_buffer = SimpleQueue()  # message from tracker ()
         self.tracker_buffer = {}  # key:fid value:simpleQueue
-
         self.peer_query_buffer = SimpleQueue()  # message from other PClient (other PClient query you)
-
-        # self.peer_respond_buffer = SimpleQueue()  # message from other PClient (you query other PClient)
         self.peer_respond_buffer = {}  # key = fcid value= simplequeue
-
         self.priority = PriorityQueue()
         self.max_try_download_length = 3
         self.max_accept_length = 4
         self.accept_rate = 0.3
-        # Thread(target=self.listening(), args=()).start()  # thread to receive and divide message
-        self.provide = Thread(target=self.provide_to_peer(), args=())  # thread to provide trunk to peer
+        self.listen = Thread(target=self.listening, args=())
+        self.listen.start()
+        self.provide = Thread(target=self.provide_to_peer, args=())  # thread to provide trunk to peer
         self.provide.start()
-        self.rate_change = Thread(target=self.listen_rate_change(), args=())
+        self.rate_change = Thread(target=self.listen_rate_change, args=())
         self.rate_change.start()
-        self.my_file = []  # records of my_file
+        self.chunk_size = 128 * 1024
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -63,13 +56,13 @@ class PClient:
     def listen_rate_change(self):
         var = self.upload_rate
         while True:
-            if var != self.upload_rate:  # var changed
+            if var != self.upload_rate:
                 trans = {"identifier": "CHANGE_RATE", "rate": self.upload_rate}
                 msg = pickle.dumps(trans)
                 self.__send__(msg, self.tracker)
-                var = self.upload_rate  # update pre
+                var = self.upload_rate  # update var
             else:
-                time.sleep(100)
+                time.sleep(1)
 
     def register(self, file_path: str):
         """
@@ -79,35 +72,28 @@ class PClient:
                  download this file, such as a hash code of it
         """
         # fid = None
-        chunk_size = 128 * 1024
         """
         Start your code below!
         """
         with open(file_path, "rb") as file:
             content = file.read()
 
-        chunk_num = int(np.ceil(len(content) / chunk_size))
+        chunk_num = int(np.ceil(len(content) / self.chunk_size))
         fid = md5(content).hexdigest()
         chunks = []
         self.file[fid] = {}
         fcid = []
         for i in range(chunk_num):
-            left_bound = i * chunk_size
-            right_bound = min((i + 1) * chunk_size, len(content))
+            left_bound = i * self.chunk_size
+            right_bound = min((i + 1) * self.chunk_size, len(content))
             tmp_chunk = content[left_bound: right_bound]
             tmp_fcid = "{fid}{i}".format(fid=fid, i=i)
             fcid.append(tmp_fcid)
             chunks.append(tmp_chunk[:])
             self.file[fid][tmp_fcid] = tmp_chunk
-        # print(len(chunks[0]), len(chunks[1]))
-        # print(len(content))
         trans = {"identifier": "REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
         msg = pickle.dumps(trans)
-        # self.__send__(msg, self.tracker)
-
-        print(len(msg))
-        # to judge whether it is successful??
-        # pass
+        self.__send__(msg, self.tracker)
 
         """
         End of your code
@@ -142,18 +128,18 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
+        print(len(self.tracker_buffer))
         answer1, _ = self.tracker_buffer[fid].get()
-        answer1 = pickle.loads(answer1)
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
         # if download chunk from current fastest source success,we should register this chunk
-        chunk_list = answer1.keys()
+        chunk_list = answer1["result"]
 
         # random chunk
         random.shuffle(chunk_list)
         chunk_queue = SimpleQueue()
-        for i in range(chunk_list.qsize()):
+        for i in range(len(chunk_list)):
             chunk_queue.put(chunk_list[i])
 
         fast = 0
@@ -164,11 +150,12 @@ class PClient:
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
             msg = pickle.dumps(tran)
             self.__send__(msg, self.tracker)
-            answer, _ = self.tracker_buffer[fcid].get()
+            answer0, _ = self.tracker_buffer[fcid].get()
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
+            answer = answer0["result"]
             answer.sort(key=lambda x: x[1])
             msg_new = pickle.dumps(transfer)
-            self.__send__(msg_new, answer[fcid][0][0])
+            self.__send__(msg_new, answer[0][0])
             index = 1
             cnt = 0
             message = {}
@@ -261,7 +248,7 @@ class PClient:
         Completely stop the client, this client will be unable to share or download files any more
         :return: You can design as your need
         """
-        for file in self.my_file:
+        for file in self.file.keys():
             self.cancel(file)
         self.provide.join()
         self.rate_change.join()
@@ -278,12 +265,18 @@ class PClient:
         """
         while True:
             msg, frm = self.__recv__()
+            print(msg)
             msg = pickle.loads(msg)
-            if msg["identifier"] == "QUERY_RESULT":  # message from tracker
+            if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker
                 fid = msg["fid"]
-                if fid not in self.tracker_buffer:
-                    self.tracker_buffer[fid] = SimpleQueue
+                if fid not in self.tracker_buffer.keys():
+                    self.tracker_buffer[fid] = SimpleQueue()
                 self.tracker_buffer[fid].put((msg, frm))
+            elif msg["identifier"] == "QUERY_RESULT_EACH":  # message from tracker
+                fcid = msg["fcid"]
+                if fcid not in self.tracker_buffer.keys():
+                    self.tracker_buffer[fcid] = SimpleQueue()
+                self.tracker_buffer[fcid].put((msg, frm))
             elif msg["identifier"] == "QUERY_PEER":  # message from other PClient
                 self.peer_query_buffer.put((msg, frm))
             elif msg["identifier"] == "PEER_RESPOND":
@@ -346,8 +339,9 @@ if __name__ == '__main__':
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     id = B.register("./test_files/alice.txt")
+
     # id1 = C.register("./test_files/alice.txt")
-    # msg, frm = B.__recv__()
+    #msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()
     # print(msg, frm)
     # print(msg1, frm1)
@@ -355,12 +349,12 @@ if __name__ == '__main__':
     # B.register_chunk(id, "testtest123456")
     # msg, frm = B.__recv__()
     # print(msg, frm)
-    # files = B.download(id)
+    files = C.download(id)
     # pass
 
 # TODO: 1. random chunks √
 #       2. 不发也回报文  √
-#       3. tit for tat
+#       3. tit for tat √
 #       3. 速率变化发给tracker √
 #       4. 如果只有A有，连续请求，一定概率接收。√
 # TODO: Sefl-adaptive intellegent  chunks size :)

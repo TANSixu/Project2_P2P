@@ -49,31 +49,29 @@ class Tracker:
                     self.file[fid][item].append(frm)
                     if frm not in self.client_rate.keys():
                         self.client_rate[frm] = msg["rate"]
-                self.response("Success", frm)
+                # 不删去会有影响
+                # self.response("Success", frm)
                 print(self.file)
             elif msg["identifier"] == "QUERY":
                 # Client can use this to check who has the specific file with the given fid
                 # trans = {"identifier":"QUERY", "fid": fid}
                 fid = msg["fid"]
-                result = {}
-                keys = self.file[fid].keys()
-                for c in keys:
-                    values = self.file[fid][c]
-                    result[c] = values
-                # 在这边似乎比较好
-                #     fast = 0
-                #     fast_index = 0
-                #     for index, x in enumerate(values):
-                #         if x[1] > fast:
-                #             fast = x[1]
-                #             fast_index = index
-                #     result[c].append(values[fast_index][0][0])
-                #     result[c].append(values[fast_index][0][1])
-                #     result[c].append(values[fast_index][1])
-                # #self.response("[%s]" % (", ".join(result)), frm)
-                transfer = {"identifier": "QUERY_RESULT", "fid": fid, "result": result}
+                keys = list(self.file[fid].keys())
+                transfer = {"identifier": "QUERY_RESULT_INITIAL", "fid": fid, "result": keys}
                 ans = pickle.dumps(transfer)
                 self.__send__(ans, frm)
+            elif msg["identifier"] == "QUERY_TRUNK":
+                # tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
+                fid = msg["fid"]
+                fcid = msg["fcid"]
+                cilents = self.file[fid][fcid]
+                result = []
+                for item in cilents:
+                    result.append((item, self.client_rate[item]))
+                transfer = {"identifier": "QUERY_RESULT_EACH", "fid": fid, "fcid": fcid, "result": result}
+                ans = pickle.dumps(transfer)
+                self.__send__(ans, frm)
+
             elif msg["identifier"] == "CANCEL:":
                 # Client can use this file to cancel the share of a file
                 # trans = {"identifier":"CANCEL", "fid": fid}
