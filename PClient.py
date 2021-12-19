@@ -1,6 +1,5 @@
 import time
 from random import random
-
 from Proxy import Proxy
 from hashlib import md5
 import numpy as np
@@ -28,7 +27,7 @@ class PClient:
 
         self.peer_query_buffer = SimpleQueue()  # message from other PClient (other PClient query you)
 
-        # self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
+        # self.peer_respond_buffer = SimpleQueue()  # message from other PClient (you query other PClient)
         self.peer_respond_buffer = {}  # key = fcid value= simplequeue
 
         self.priority = PriorityQueue()
@@ -36,7 +35,9 @@ class PClient:
         self.accept_rate = 0.3
         # Thread(target=self.listening(), args=()).start()  # thread to receive and divide message
         self.provide = Thread(target=self.provide_to_peer(), args=())  # thread to provide trunk to peer
-        # self.provide.start()
+        self.provide.start()
+        self.rate_change = Thread(target=self.listen_rate_change(), args=())
+        self.rate_change.start()
         self.my_file = []  # records of my_file
 
     def __send__(self, data: bytes, dst: (str, int)):
@@ -57,6 +58,17 @@ class PClient:
         :return: a tuple x with packet data in x[0] and the source address(ip, port) in x[1]
         """
         return self.proxy.recvfrom(timeout)
+
+    def listen_rate_change(self):
+        var = self.upload_rate
+        while True:
+            if var != self.upload_rate:  # var changed
+                trans = {"identifier": "CHANGE_RATE","rate": self.upload_rate}
+                msg = pickle.dumps(trans)
+                self.__send__(msg, self.tracker)
+                var = self.upload_rate  # update pre
+            else:
+                time.sleep(100)
 
     def register(self, file_path: str):
         """
@@ -136,9 +148,19 @@ class PClient:
 
         # if download chunk from current fastest source success,we should register this chunk
         chunk_list = answer.keys()
+        # random chunk
+        index = []
+        for i in range(chunk_list.qsize()):
+            index.append(i)
+        for i in range(chunk_list.qsize()):
+            x = int(random() * chunk_list.qsize())
+            temp = index[x]
+            index[x] = index[i]
+            index[i] = temp
         chunk_queue = SimpleQueue()
-        for x in chunk_list:
-            chunk_queue.put(x)
+        for i in range(chunk_list.qsize()):
+            chunk_queue.put([index[i], chunk_list[i]])
+
         fast = 0
         fast_index = 0
         while not chunk_queue.empty():
@@ -195,6 +217,7 @@ class PClient:
         for file in self.my_file:
             self.cancel(file)
         self.provide.join()
+        self.rate_change.join()
         """
         End of your code
         """
@@ -234,11 +257,11 @@ class PClient:
     def provide_to_peer(self):
         # 在列表中或者列表没满 直接发送并加入列表
         # 不在列表中但是速率超过列表最慢项 加入列表
-        # 不在列表中但是速率小于列表最慢项 概率发送
+        # 不在列表中但是速率小于列表最慢项 概率发送 加入列表
         # 发送一个失败的消息回复
         while not self.peer_query_buffer.empty():
             # transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate":...}
-            transfer, frm = self.peer_query_buffer.get(0)
+            transfer, frm = self.peer_query_buffer.get()
             if self.priority.qsize() < self.max_accept_length:
                 upload_rate = transfer["upload_rate"]
                 self.priority.put([upload_rate, frm])
@@ -255,6 +278,7 @@ class PClient:
                 else:
                     rand = random()
                     if rand < self.accept_rate:
+                        self.priority.put([transfer["upload_rate"], frm])
                         fid = transfer["fid"]
                         fcid = transfer["fcid"]
                         result = self.file[fid][fcid]
@@ -285,5 +309,9 @@ if __name__ == '__main__':
     # files = B.download(id)
     # pass
 
-# TODO: 1. random chunks, 2. 不发也回报文 3. tit for tat   3. 速率变化发给tracker  4. 如果只有A有，连续请求，一定概率接收。
-# TODO: Sefl-adaptive intellegent  chunks size
+# TODO: 1. random chunks √
+#       2. 不发也回报文  √
+#       3. tit for tat
+#       3. 速率变化发给tracker √
+#       4. 如果只有A有，连续请求，一定概率接收。√
+# TODO: Sefl-adaptive intellegent  chunks size :)
