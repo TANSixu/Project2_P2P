@@ -1,10 +1,11 @@
 import time
+from random import random
 
 from Proxy import Proxy
 from hashlib import md5
 import numpy as np
 import pickle
-from queue import SimpleQueue
+from queue import SimpleQueue, PriorityQueue
 from threading import Thread
 
 
@@ -30,10 +31,13 @@ class PClient:
         # self.peer_respond_buffer = SimpleQueue()  # messqge from other PClient (you query other PClient)
         self.peer_respond_buffer = {}  # key = fcid value= simplequeue
 
+        self.priority = PriorityQueue()
+        self.max_accept_length = 4
+        self.accept_rate = 0.3
         # Thread(target=self.listening(), args=()).start()  # thread to receive and divide message
-        self.provide = Thread(target=self.provide_to_peer(), args=()) # thread to provide trunk to peer
+        self.provide = Thread(target=self.provide_to_peer(), args=())  # thread to provide trunk to peer
         # self.provide.start()
-        self.my_file = []  #records of my_file
+        self.my_file = []  # records of my_file
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -89,7 +93,7 @@ class PClient:
         # self.__send__(msg, self.tracker)
 
         print(len(msg))
-        #to judge whether it is successful??
+        # to judge whether it is successful??
         # pass
 
         """
@@ -140,15 +144,17 @@ class PClient:
         while not chunk_queue.empty():
             fcid = chunk_queue.get()
             # add fid
-            transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid}
+            transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             for index, x in enumerate(answer[fcid]):
                 if x[1] > fast:
                     fast = x[1]
                     fast_index = index
             msg_new = pickle.dumps(transfer)
             self.__send__(msg_new, answer[fcid][fast_index][0])
-            message, addr =  self.recv_from_buffer(self.peer_respond_buffer[fcid],3)
+            message, addr = self.recv_from_buffer(self.peer_respond_buffer[fcid], 3)
             # register the file！
+            # TODO: glue all chunks when receiving finishes.
+            # TODO: add to my_file after receive.
         # if source canceled or closed,we should ask the tracker to update source
 
         """
@@ -168,10 +174,8 @@ class PClient:
         :return: You can design as your need
         """
 
-        #TODO: whether to cancel a chunk? Though fid can locate all chunks at the tracker side.
-        #TODO: glue all chunks when receiving finishes.
-        #TODO: add to my_file after receive.
-        #TODO: whether to stop the provice thread? Possibly multiple files shared?
+        # TODO: whether to cancel a chunk? Though fid can locate all chunks at the tracker side.
+        # TODO: whether to stop the provice thread? Possibly multiple files shared?
         trans = {"identifier": "CANCEL", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
@@ -219,7 +223,7 @@ class PClient:
                 self.peer_respond_buffer[fcid].put((msg, frm))
 
     def recv_from_buffer(self, buffer, timeout=None) -> (
-    bytes, (str, int)):  # choose one buffer from three to get a top message
+            bytes, (str, int)):  # choose one buffer from three to get a top message
         t = time.time()
         while not timeout or time.time() - t < timeout:
             if not buffer.empty():
@@ -227,17 +231,41 @@ class PClient:
             time.sleep(0.000001)
         raise TimeoutError
 
-
     def provide_to_peer(self):
+        # 在列表中或者列表没满 直接发送并加入列表
+        # 不在列表中但是速率超过列表最慢项 加入列表
+        # 不在列表中但是速率小于列表最慢项 概率发送
+        # 发送一个失败的消息回复
         while not self.peer_query_buffer.empty():
-            # transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid}
-            transfer, frm = self.peer_query_buffer.get()
-            fid = transfer["fid"]
-            fcid = transfer["fcid"]
-            result = self.file[fid][fcid]
-            transfer = {"identifier": "PEER_RESPOND", "fid": fid, "fcid": fcid, "result": result}
-            msg = pickle.dumps(transfer)
-            self.__send__(msg, frm)
+            # transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate":...}
+            transfer, frm = self.peer_query_buffer.get(0)
+            if self.priority.qsize() < self.max_accept_length:
+                upload_rate = transfer["upload_rate"]
+                self.priority.put([upload_rate, frm])
+            else:
+                least_frm = self.priority.get(0)
+                if least_frm[0] < transfer["upload_rate"]:
+                    self.priority.put([transfer["upload_rate"], frm])
+                    fid = transfer["fid"]
+                    fcid = transfer["fcid"]
+                    result = self.file[fid][fcid]
+                    transfer = {"identifier": "PEER_RESPOND", "fid": fid, "fcid": fcid, "result": result}
+                    msg = pickle.dumps(transfer)
+                    self.__send__(msg, frm)
+                else:
+                    rand = random()
+                    if rand < self.accept_rate:
+                        fid = transfer["fid"]
+                        fcid = transfer["fcid"]
+                        result = self.file[fid][fcid]
+                        transfer = {"identifier": "PEER_RESPOND", "state": "success", "fid": fid, "fcid": fcid,
+                                    "result": result}
+                        msg = pickle.dumps(transfer)
+                        self.__send__(msg, frm)
+                    else:
+                        transfer = {"identifier": "PEER_RESPOND", "state": "fail"}
+                        msg = pickle.dumps(transfer)
+                        self.__send__(msg, frm)
 
 
 if __name__ == '__main__':
@@ -256,7 +284,6 @@ if __name__ == '__main__':
     # print(msg, frm)
     # files = B.download(id)
     # pass
-
 
 # TODO: 1. random chunks, 2. 不发也回报文 3. tit for tat   3. 速率变化发给tracker  4. 如果只有A有，连续请求，一定概率接收。
 # TODO: Sefl-adaptive intellegent  chunks size
