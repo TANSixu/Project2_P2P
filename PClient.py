@@ -303,8 +303,9 @@ class PClient:
     def recv_from_dict(self, buffer, fid, timeout=None):
         t = time.time()
         while not timeout or time.time() - t < timeout:
-            if buffer.has_key(fid):
-                return buffer.get()
+            if fid in buffer.keys():
+                if not buffer[fid].empty(): 
+                    return buffer[fid].get()
         raise TimeoutError
 
 
