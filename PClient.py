@@ -128,8 +128,7 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-
-        answer1, _ = self.tracker_buffer[fid].get()
+        answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 3)
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
@@ -141,17 +140,15 @@ class PClient:
         chunk_queue = SimpleQueue()
         for i in range(len(chunk_list)):
             chunk_queue.put(chunk_list[i])
-
         fast = 0
         fast_index = 0
         while not chunk_queue.empty():
-            print(chunk_queue.qsize())
             fcid = chunk_queue.get()
             # add fid
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
             msg = pickle.dumps(tran)
             self.__send__(msg, self.tracker)
-            answer0, _ = self.tracker_buffer[fcid].get()
+            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 3)
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             answer = answer0["result"]
             answer.sort(key=lambda x: x[1])
@@ -162,7 +159,7 @@ class PClient:
             message = {}
             while True:
                 try:
-                    message, addr = self.recv_from_buffer(self.peer_respond_buffer[fcid], 3)
+                    message, addr = self.recv_from_dict(self.peer_respond_buffer,fcid, 3)
                     if message["state"] == "success":
                         break
                     else:
@@ -179,10 +176,10 @@ class PClient:
                             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
                             msg = pickle.dumps(tran)
                             self.__send__(msg, self.tracker)
-                            answer, _ = self.tracker_buffer[fcid].get()
-                            answer = pickle.loads(answer)
+                            answer1, _ = self.tracker_buffer[fcid].get()
                             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
                                         "upload_rate": self.upload_rate}
+                            answer = answer1["result"]
                             answer.sort(key=lambda x: x[1])
                             msg_new = pickle.dumps(transfer)
                             self.__send__(msg_new, answer[0][0])
@@ -269,8 +266,6 @@ class PClient:
         while True:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
-            print("msg from others: ")
-            print(msg)
             if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker
                 fid = msg["fid"]
                 if fid not in self.tracker_buffer.keys():
@@ -307,9 +302,6 @@ class PClient:
                 if not buffer[fid].empty(): 
                     return buffer[fid].get()
         raise TimeoutError
-
-
-
 
     def provide_to_peer(self):
         # 在列表中或者列表没满 直接发送并加入列表
@@ -365,7 +357,8 @@ if __name__ == '__main__':
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     id = B.register("./test_files/alice.txt")
-
+    time.sleep(1)
+    print(id)
     # id1 = C.register("./test_files/alice.txt")
     # msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()
@@ -376,7 +369,7 @@ if __name__ == '__main__':
     # msg, frm = B.__recv__()
     # print(msg, frm)
     files = C.download(id)
-    #C.close()
+    # C.close()
     # pass
 
 # TODO: 1. random chunks √
@@ -386,6 +379,6 @@ if __name__ == '__main__':
 #       4. 如果只有A有，连续请求，一定概率接收。√
 # TODO: Sefl-adaptive intellegent  chunks size :)
 
-#question:
+# question:
 # 1.can only be done in debug mode?
 # 2.how to decode files?

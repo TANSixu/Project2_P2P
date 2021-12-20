@@ -1,4 +1,10 @@
-from PClient import PClient
+import sys
+
+from Project2_P2P.PClient import PClient
+from Project2_P2P import *
+
+sys.path.append("../Project2_P2P/")
+
 
 tracker_address = ("127.0.0.1", 10086)
 
