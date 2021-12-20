@@ -9,6 +9,7 @@ class Tracker:
         self.proxy = Proxy(upload_rate, download_rate, port)
         self.file = {}  # file=[{file1_1:chunk1....}{file1_2:......}]
         self.client_rate = {}  # key:frm value:rate
+        self.active = []
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -55,11 +56,17 @@ class Tracker:
                 # 不删去会有影响
                 # self.response("Success", frm)
                 print(self.file)
+                self.active.append(fid)
             elif msg["identifier"] == "QUERY":
                 # Client can use this to check who has the specific file with the given fid
                 # trans = {"identifier":"QUERY", "fid": fid}
                 fid = msg["fid"]
-                keys = list(self.file[fid].keys())
+                keys=[]
+
+                if fid in self.active:
+                    print("you know me well!")
+                    keys = list(self.file[fid].keys())
+
                 transfer = {"identifier": "QUERY_RESULT_INITIAL", "fid": fid, "result": keys}
                 ans = pickle.dumps(transfer)
                 self.__send__(ans, frm)

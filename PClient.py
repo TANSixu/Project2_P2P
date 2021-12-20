@@ -127,8 +127,17 @@ class PClient:
         """
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
-        self.__send__(msg, self.tracker)
-        answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 3)
+
+        while True:
+            try:
+                self.__send__(msg, self.tracker)
+                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 1)
+                if len(answer1["result"]) > 0:
+                    print("good job!")
+                    break
+            except TimeoutError:
+                print("Go back home, we dont have your place!")
+
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
