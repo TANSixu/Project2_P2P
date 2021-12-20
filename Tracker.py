@@ -37,6 +37,9 @@ class Tracker:
         while True:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
+            print("msg from pclient: ")
+            print(msg)
+            print(self.file)
             if msg["identifier"] == "REGISTER":
                 # trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
                 fid = msg["fid"]

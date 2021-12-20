@@ -268,6 +268,8 @@ class PClient:
         while True:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
+            print("msg from others: ")
+            print(msg)
             if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker
                 fid = msg["fid"]
                 if fid not in self.tracker_buffer.keys():
@@ -362,7 +364,7 @@ if __name__ == '__main__':
     # msg, frm = B.__recv__()
     # print(msg, frm)
     files = C.download(id)
-    C.close()
+    #C.close()
     # pass
 
 # TODO: 1. random chunks √
@@ -371,3 +373,7 @@ if __name__ == '__main__':
 #       3. 速率变化发给tracker √
 #       4. 如果只有A有，连续请求，一定概率接收。√
 # TODO: Sefl-adaptive intellegent  chunks size :)
+
+#question:
+# 1.can only be done in debug mode?
+# 2.how to decode files?
