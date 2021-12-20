@@ -28,11 +28,11 @@ class PClient:
         self.accept_rate = 0.3
         self.listen = Thread(target=self.listening, args=())
         self.listen.start()
-        self.provide = Thread(target=self.provide_to_peer, args=())  # thread to provide trunk to peer
-        self.provide.start()
+        # self.provide = Thread(target=self.provide_to_peer, args=())  # thread to provide trunk to peer
+        # self.provide.start()
         self.rate_change = Thread(target=self.listen_rate_change, args=())
         self.rate_change.start()
-        self.chunk_size = 128 * 1024
+        self.chunk_size = 32 * 1024
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -128,7 +128,6 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
-        print(len(self.tracker_buffer))
         answer1, _ = self.tracker_buffer[fid].get()
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
@@ -145,6 +144,7 @@ class PClient:
         fast = 0
         fast_index = 0
         while not chunk_queue.empty():
+            print(chunk_queue.qsize())
             fcid = chunk_queue.get()
             # add fid
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
@@ -161,8 +161,7 @@ class PClient:
             message = {}
             while True:
                 try:
-                    message1, addr = self.recv_from_buffer(self.peer_respond_buffer[fcid], 3)
-                    message = pickle.loads(message1)
+                    message, addr = self.recv_from_buffer(self.peer_respond_buffer[fcid], 3)
                     if message["state"] == "success":
                         break
                     else:
@@ -170,7 +169,7 @@ class PClient:
                             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
                                         "upload_rate": self.upload_rate}
                             msg_new = pickle.dumps(transfer)
-                            self.__send__(msg_new, answer[fcid][index % len(answer)][0])
+                            self.__send__(msg_new, answer[index % len(answer)][0])
                             index += 1
                             cnt += 1
                         else:
@@ -185,7 +184,7 @@ class PClient:
                                         "upload_rate": self.upload_rate}
                             answer.sort(key=lambda x: x[1])
                             msg_new = pickle.dumps(transfer)
-                            self.__send__(msg_new, answer[fcid][0][0])
+                            self.__send__(msg_new, answer[0][0])
                 except TimeoutError:
 
                     transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
@@ -197,6 +196,10 @@ class PClient:
             # TODO: glue all chunks when receiving finishes.
             # TODO: add to my_file after receive.
             self.register_chunk(fid, fcid)
+            if fid not in self.file.keys():
+                self.file[fid] = {}
+            if fcid not in self.file[fid].keys():
+                self.file[fid][fcid] = bytes()
             self.file[fid][fcid] = message["result"]
 
         result = []
@@ -207,7 +210,7 @@ class PClient:
         data = bytes()
         for x in result:
             data = data + x[1]
-
+        print(data)
         fo = open("{fid}.txt".format(fid=fid), "wb")
         fo.write(data)
         fo.close()
@@ -250,7 +253,6 @@ class PClient:
         """
         for file in self.file.keys():
             self.cancel(file)
-        self.provide.join()
         self.rate_change.join()
         """
         End of your code
@@ -265,7 +267,6 @@ class PClient:
         """
         while True:
             msg, frm = self.__recv__()
-            print(msg)
             msg = pickle.loads(msg)
             if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker
                 fid = msg["fid"]
@@ -279,6 +280,8 @@ class PClient:
                 self.tracker_buffer[fcid].put((msg, frm))
             elif msg["identifier"] == "QUERY_PEER":  # message from other PClient
                 self.peer_query_buffer.put((msg, frm))
+                self.provide_to_peer()
+
             elif msg["identifier"] == "PEER_RESPOND":
                 fcid = msg["fcid"]
                 if fcid not in self.peer_respond_buffer.keys():
@@ -305,19 +308,26 @@ class PClient:
             if self.priority.qsize() < self.max_accept_length:
                 upload_rate = transfer["upload_rate"]
                 self.priority.put([upload_rate, frm])
-                # response
+                fid = transfer["fid"]
+                fcid = transfer["fcid"]
+                result = self.file[fid][fcid]
+                transfer = {"identifier": "PEER_RESPOND", "state": "success", "fid": fid, "fcid": fcid,
+                            "result": result}
+                msg = pickle.dumps(transfer)
+                self.__send__(msg, frm)
             else:
-                least_frm = self.priority.get(0)
+                least_frm = self.priority.get()
                 if least_frm[0] < transfer["upload_rate"]:
                     self.priority.put([transfer["upload_rate"], frm])
                     fid = transfer["fid"]
                     fcid = transfer["fcid"]
                     result = self.file[fid][fcid]
-                    transfer = {"identifier": "PEER_RESPOND", "fid": fid, "fcid": fcid, "result": result}
+                    transfer = {"identifier": "PEER_RESPOND", "state": "success", "fid": fid, "fcid": fcid,
+                                "result": result}
                     msg = pickle.dumps(transfer)
                     self.__send__(msg, frm)
                 else:
-                    rand = random()
+                    rand = random.random()
                     if rand < self.accept_rate:
                         self.priority.put([transfer["upload_rate"], frm])
                         fid = transfer["fid"]
@@ -328,8 +338,10 @@ class PClient:
                         msg = pickle.dumps(transfer)
                         self.__send__(msg, frm)
                     else:
-                        # put it back
-                        transfer = {"identifier": "PEER_RESPOND", "state": "fail"}
+                        fid = transfer["fid"]
+                        fcid = transfer["fcid"]
+                        self.priority.put(least_frm)
+                        transfer = {"identifier": "PEER_RESPOND", "state": "fail", "fid": fid, "fcid": fcid}
                         msg = pickle.dumps(transfer)
                         self.__send__(msg, frm)
 
@@ -341,7 +353,7 @@ if __name__ == '__main__':
     id = B.register("./test_files/alice.txt")
 
     # id1 = C.register("./test_files/alice.txt")
-    #msg, frm = B.__recv__()
+    # msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()
     # print(msg, frm)
     # print(msg1, frm1)
@@ -350,6 +362,7 @@ if __name__ == '__main__':
     # msg, frm = B.__recv__()
     # print(msg, frm)
     files = C.download(id)
+    C.close()
     # pass
 
 # TODO: 1. random chunks √
