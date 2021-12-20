@@ -197,7 +197,7 @@ class PClient:
                     transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
                                 "upload_rate": self.upload_rate}
                     msg_new = pickle.dumps(transfer)
-                    self.__send__(msg_new, answer[fcid][index % len(answer)][0])
+                    self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
             # register the file！
             # TODO: glue all chunks when receiving finishes.
@@ -247,7 +247,7 @@ class PClient:
         self.__send__(msg, self.tracker)
         # self.provide.join()  #stop the provide thread.
 
-        pass
+        # pass
 
         """
         End of your code
@@ -260,7 +260,7 @@ class PClient:
         """
         for file in self.file.keys():
             self.cancel(file)
-        self.rate_change.join()
+        # self.rate_change.join()
         """
         End of your code
         """

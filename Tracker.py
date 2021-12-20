@@ -82,16 +82,18 @@ class Tracker:
                 ans = pickle.dumps(transfer)
                 self.__send__(ans, frm)
 
-            elif msg["identifier"] == "CANCEL:":
+            elif msg["identifier"] == "CANCEL":
                 # Client can use this file to cancel the share of a file
                 # trans = {"identifier":"CANCEL", "fid": fid}
                 fid = msg["fid"]
                 registered_chunk = self.file[fid]
                 for chunk in registered_chunk.keys():
                     for client in registered_chunk[chunk]:
-                        if client[0] == frm:
+                        if client == frm:
                             registered_chunk[chunk].remove(client)
-                self.response("Success", frm)
+                self.client_rate.pop(frm)
+                print(self.file)
+                #self.response("Success", frm)
             elif msg["identifier"] == "CHANGE_RATE":
                 self.client_rate[frm] = msg["rate"]
                 self.response("Success", frm)
