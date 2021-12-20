@@ -128,6 +128,7 @@ class PClient:
         trans = {"identifier": "QUERY", "fid": fid}
         msg = pickle.dumps(trans)
         self.__send__(msg, self.tracker)
+
         answer1, _ = self.tracker_buffer[fid].get()
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
@@ -298,6 +299,16 @@ class PClient:
                 return buffer.get()
             time.sleep(0.000001)
         raise TimeoutError
+
+    def recv_from_dict(self, buffer, fid, timeout=None):
+        t = time.time()
+        while not timeout or time.time() - t < timeout:
+            if buffer.has_key(fid):
+                return buffer.get()
+        raise TimeoutError
+
+
+
 
     def provide_to_peer(self):
         # 在列表中或者列表没满 直接发送并加入列表
