@@ -149,8 +149,6 @@ class PClient:
         chunk_queue = SimpleQueue()
         for i in range(len(chunk_list)):
             chunk_queue.put(chunk_list[i])
-        fast = 0
-        fast_index = 0
         while not chunk_queue.empty():
             fcid = chunk_queue.get()
             # add fid
@@ -168,7 +166,8 @@ class PClient:
             message = {}
             while True:
                 try:
-                    message, addr = self.recv_from_dict(self.peer_respond_buffer,fcid, 3)
+                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 3)
+                    print("receive trunk from:",addr)
                     if message["state"] == "success":
                         break
                     else:
@@ -189,7 +188,7 @@ class PClient:
                             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid,
                                         "upload_rate": self.upload_rate}
                             answer = answer1["result"]
-                            answer.sort(key=lambda x: x[1])
+                            answer.sort(key=lambda y: y[1])
                             msg_new = pickle.dumps(transfer)
                             self.__send__(msg_new, answer[0][0])
                 except TimeoutError:
@@ -308,11 +307,11 @@ class PClient:
         t = time.time()
         while not timeout or time.time() - t < timeout:
             if fid in buffer.keys():
-                if not buffer[fid].empty(): 
+                if not buffer[fid].empty():
                     return buffer[fid].get()
         raise TimeoutError
 
-    def provide_to_peer(self):
+    def provide_to_peer_tit_tat(self):
         # 在列表中或者列表没满 直接发送并加入列表
         # 不在列表中但是速率超过列表最慢项 加入列表
         # 不在列表中但是速率小于列表最慢项 概率发送 加入列表
@@ -359,6 +358,17 @@ class PClient:
                         transfer = {"identifier": "PEER_RESPOND", "state": "fail", "fid": fid, "fcid": fcid}
                         msg = pickle.dumps(transfer)
                         self.__send__(msg, frm)
+
+    def provide_to_peer(self):
+        while not self.peer_query_buffer.empty():
+            transfer, frm = self.peer_query_buffer.get()
+            fid = transfer["fid"]
+            fcid = transfer["fcid"]
+            result = self.file[fid][fcid]
+            transfer = {"identifier": "PEER_RESPOND", "state": "success", "fid": fid, "fcid": fcid,
+                        "result": result}
+            msg = pickle.dumps(transfer)
+            self.__send__(msg, frm)
 
 
 if __name__ == '__main__':
