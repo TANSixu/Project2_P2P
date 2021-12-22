@@ -132,7 +132,7 @@ class PClient:
         while True:
             try:
                 self.__send__(msg, self.tracker)
-                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 1)
+                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 10)
                 if len(answer1["result"]) > 0:
                     print("good job!")
                     break
@@ -156,7 +156,7 @@ class PClient:
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
             msg = pickle.dumps(tran)
             self.__send__(msg, self.tracker)
-            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 3)
+            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 10)
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             answer = answer0["result"]
             answer.sort(key=lambda x: x[1])
@@ -167,7 +167,7 @@ class PClient:
             message = {}
             while True:
                 try:
-                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 3)
+                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
                     print("receive trunk from:", addr)
                     if message["state"] == "success":
                         break
@@ -405,5 +405,5 @@ if __name__ == '__main__':
 # TODO: Sefl-adaptive intellegent  chunks size :)
 
 # question:
-# 1.can only be done in debug mode?
-# 2.how to decode files?
+# 1. timeout =10
+# 2. close the thread
