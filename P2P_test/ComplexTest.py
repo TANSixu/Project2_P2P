@@ -1,7 +1,8 @@
 import time
 from threading import Thread
-
-from PClient import PClient
+import sys
+sys.path.append("../")
+from Project2_P2P.PClient import PClient
 
 tracker_address = ("127.0.0.1", 10086)
 

@@ -15,7 +15,6 @@ class PClient:
         else:
             self.proxy = Proxy(upload_rate, download_rate, port)  # Do not modify this line!
         self.tracker = tracker_addr
-
         self.upload_rate = upload_rate
         self.download_rate = download_rate
         self.file = {}  # key: fid, fcid ; values: corresponding bytes
@@ -26,13 +25,15 @@ class PClient:
         self.max_try_download_length = 3
         self.max_accept_length = 4
         self.accept_rate = 0.3
+        self.chunk_size = 32 * 1024
+        self.active = True
+        # 变量定义不可以写在线程start后面
         self.listen = Thread(target=self.listening, args=())
         self.listen.start()
         # self.provide = Thread(target=self.provide_to_peer, args=())  # thread to provide trunk to peer
         # self.provide.start()
         self.rate_change = Thread(target=self.listen_rate_change, args=())
         self.rate_change.start()
-        self.chunk_size = 32 * 1024
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -55,7 +56,7 @@ class PClient:
 
     def listen_rate_change(self):
         var = self.upload_rate
-        while True:
+        while self.active:
             if var != self.upload_rate:
                 trans = {"identifier": "CHANGE_RATE", "rate": self.upload_rate}
                 msg = pickle.dumps(trans)
@@ -167,7 +168,7 @@ class PClient:
             while True:
                 try:
                     message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 3)
-                    print("receive trunk from:",addr)
+                    print("receive trunk from:", addr)
                     if message["state"] == "success":
                         break
                     else:
@@ -242,7 +243,6 @@ class PClient:
         # TODO: whether to stop the provice thread? Possibly multiple files shared?
         trans = {"identifier": "CANCEL", "fid": fid}
         msg = pickle.dumps(trans)
-        print('=================================')
         self.__send__(msg, self.tracker)
         # self.provide.join()  #stop the provide thread.
 
@@ -265,8 +265,7 @@ class PClient:
         """
         while not self.proxy.send_queue.empty():
             continue
-        # self.listen.join()
-        # self.rate_change.join()
+        self.active = False
         self.proxy.close()
 
     def listening(self):
@@ -275,7 +274,10 @@ class PClient:
         when self.close() or all the local files are canceled , kill the threading.
         :return:
         """
-        while True:
+        while self.active:
+            #if not self.proxy.recv_queue.empty():
+            if self.proxy.recv_queue.empty():
+                continue
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
             if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker

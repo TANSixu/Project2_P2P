@@ -15,7 +15,6 @@ if __name__ == '__main__':
     data1 = B.download(fid)
     # A cancel the register of the file
     A.close()
-    print("flag!")
     # C join the network and download the file from B
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     print("C", C.proxy.port)
