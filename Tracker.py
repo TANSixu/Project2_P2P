@@ -38,9 +38,6 @@ class Tracker:
         while True:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
-            print("msg from pclient: ")
-            print(msg)
-            print(self.file)
             if msg["identifier"] == "REGISTER":
                 # trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
                 fid = msg["fid"]
@@ -55,7 +52,7 @@ class Tracker:
                         self.client_rate[frm] = msg["rate"]
                 # 不删去会有影响
                 # self.response("Success", frm)
-                print(self.file)
+                # print(self.file)
                 self.active.append(fid)
             elif msg["identifier"] == "QUERY":
                 # Client can use this to check who has the specific file with the given fid
@@ -83,6 +80,8 @@ class Tracker:
                 self.__send__(ans, frm)
 
             elif msg["identifier"] == "CANCEL":
+                print("msg from pclient: ")
+                print(msg)
                 # Client can use this file to cancel the share of a file
                 # trans = {"identifier":"CANCEL", "fid": fid}
                 fid = msg["fid"]

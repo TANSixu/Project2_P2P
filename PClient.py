@@ -216,7 +216,6 @@ class PClient:
         data = bytes()
         for x in result:
             data = data + x[1]
-        print(data)
         fo = open("{fid}.txt".format(fid=fid), "wb")
         fo.write(data)
         fo.close()
@@ -243,6 +242,7 @@ class PClient:
         # TODO: whether to stop the provice thread? Possibly multiple files shared?
         trans = {"identifier": "CANCEL", "fid": fid}
         msg = pickle.dumps(trans)
+        print('=================================')
         self.__send__(msg, self.tracker)
         # self.provide.join()  #stop the provide thread.
 
@@ -263,6 +263,10 @@ class PClient:
         """
         End of your code
         """
+        while not self.proxy.send_queue.empty():
+            continue
+        # self.listen.join()
+        # self.rate_change.join()
         self.proxy.close()
 
     def listening(self):
