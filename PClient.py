@@ -131,14 +131,15 @@ class PClient:
 
         while True:
             try:
+                print("888888:",time.time())
+                print(len(msg))
                 self.__send__(msg, self.tracker)
-                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 10)
+                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 3)
+                print('222222:',time.time())
                 if len(answer1["result"]) > 0:
-                    print("good job!")
                     break
             except TimeoutError:
                 print("Go back home, we dont have your place!")
-
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
@@ -148,6 +149,8 @@ class PClient:
         # random chunk
         random.shuffle(chunk_list)
         chunk_queue = SimpleQueue()
+        if fid not in self.file.keys():
+            self.file[fid] = {}
         for i in range(len(chunk_list)):
             chunk_queue.put(chunk_list[i])
         while not chunk_queue.empty():
@@ -156,7 +159,7 @@ class PClient:
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
             msg = pickle.dumps(tran)
             self.__send__(msg, self.tracker)
-            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 10)
+            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 3)
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             answer = answer0["result"]
             answer.sort(key=lambda x: x[1])
@@ -164,7 +167,6 @@ class PClient:
             self.__send__(msg_new, answer[0][0])
             index = 1
             cnt = 0
-            message = {}
             while True:
                 try:
                     message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
@@ -200,10 +202,6 @@ class PClient:
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
             self.register_chunk(fid, fcid)
-            if fid not in self.file.keys():
-                self.file[fid] = {}
-            if fcid not in self.file[fid].keys():
-                self.file[fid][fcid] = bytes()
             self.file[fid][fcid] = message["result"]
 
         result = []
@@ -214,13 +212,9 @@ class PClient:
         data = bytes()
         for x in result:
             data = data + x[1]
-        fo = open("{fid}.txt".format(fid=fid), "wb")
-        fo.write(data)
-        fo.close()
-
-        """
-        End of your code
-        """
+        # fo = open("{fid}.txt".format(fid=fid), "wb")
+        # fo.write(data)
+        # fo.close()
 
         return data
 
@@ -378,9 +372,7 @@ if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    id = B.register("./test_files/alice.txt")
-    time.sleep(1)
-    print(id)
+    id = B.register("./test_files/1.png")
     # id1 = C.register("./test_files/alice.txt")
     # msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()
@@ -390,7 +382,9 @@ if __name__ == '__main__':
     # B.register_chunk(id, "testtest123456")
     # msg, frm = B.__recv__()
     # print(msg, frm)
+    t = time.time()
     files = C.download(id)
+    print("total time = ", time.time() - t)
     # C.close()
     # pass
 

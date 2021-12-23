@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 from PClient import PClient
 from Proxy import Proxy
@@ -36,8 +38,11 @@ class Tracker:
         :return: None
         """
         while True:
+            print('send000:', time.time())
             msg, frm = self.__recv__()
+            print('send111:',time.time())
             msg = pickle.loads(msg)
+            print(msg)
             if msg["identifier"] == "REGISTER":
                 # trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
                 fid = msg["fid"]
@@ -66,6 +71,7 @@ class Tracker:
 
                 transfer = {"identifier": "QUERY_RESULT_INITIAL", "fid": fid, "result": keys}
                 ans = pickle.dumps(transfer)
+                print("start sending......:",time.time())
                 self.__send__(ans, frm)
             elif msg["identifier"] == "QUERY_TRUNK":
                 # tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
