@@ -199,9 +199,6 @@ class PClient:
                     msg_new = pickle.dumps(transfer)
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
-            # register the file！
-            # TODO: glue all chunks when receiving finishes.
-            # TODO: add to my_file after receive.
             self.register_chunk(fid, fcid)
             if fid not in self.file.keys():
                 self.file[fid] = {}
@@ -213,7 +210,7 @@ class PClient:
         for fcid in self.file[fid].keys():
             chunk = self.file[fid][fcid]
             result.append((fcid, chunk))
-        result.sort(key=lambda x: x[0])
+        result.sort(key=lambda y: int(y[0], 16))
         data = bytes()
         for x in result:
             data = data + x[1]
@@ -275,7 +272,7 @@ class PClient:
         :return:
         """
         while self.active:
-            #if not self.proxy.recv_queue.empty():
+            # if not self.proxy.recv_queue.empty():
             if self.proxy.recv_queue.empty():
                 continue
             msg, frm = self.__recv__()
