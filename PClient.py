@@ -131,11 +131,8 @@ class PClient:
 
         while True:
             try:
-                print("888888:",time.time())
-                print(len(msg))
                 self.__send__(msg, self.tracker)
                 answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 3)
-                print('222222:',time.time())
                 if len(answer1["result"]) > 0:
                     break
             except TimeoutError:
@@ -167,9 +164,11 @@ class PClient:
             self.__send__(msg_new, answer[0][0])
             index = 1
             cnt = 0
+            t=time.time()
             while True:
                 try:
                     message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
+                    print(time.time()-t)
                     print("receive trunk from:", addr)
                     if message["state"] == "success":
                         break
@@ -255,6 +254,7 @@ class PClient:
         End of your code
         """
         while not self.proxy.send_queue.empty():
+            #time.sleep(0.0001)
             continue
         self.active = False
         self.proxy.close()
@@ -268,6 +268,7 @@ class PClient:
         while self.active:
             # if not self.proxy.recv_queue.empty():
             if self.proxy.recv_queue.empty():
+                time.sleep(0.0001)
                 continue
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
@@ -297,7 +298,7 @@ class PClient:
         while not timeout or time.time() - t < timeout:
             if not buffer.empty():
                 return buffer.get()
-            time.sleep(0.000001)
+            time.sleep(0.0001)
         raise TimeoutError
 
     def recv_from_dict(self, buffer, fid, timeout=None):
@@ -306,6 +307,8 @@ class PClient:
             if fid in buffer.keys():
                 if not buffer[fid].empty():
                     return buffer[fid].get()
+                #time.sleep(0.0001)
+            time.sleep(0.0001)
         raise TimeoutError
 
     def provide_to_peer_tit_tat(self):
@@ -372,7 +375,7 @@ if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    id = B.register("./test_files/1.png")
+    id = B.register("./test_files/bg.png")
     # id1 = C.register("./test_files/alice.txt")
     # msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()
@@ -385,7 +388,8 @@ if __name__ == '__main__':
     t = time.time()
     files = C.download(id)
     print("total time = ", time.time() - t)
-    # C.close()
+    C.close()
+    B.close()
     # pass
 
 # TODO: 1. random chunks √
