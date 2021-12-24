@@ -159,7 +159,7 @@ class PClient:
             answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 3)
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             answer = answer0["result"]
-            answer.sort(key=lambda x: x[1])
+            answer.sort(key=lambda x: (x[1], random.random()), reverse=True)
             msg_new = pickle.dumps(transfer)
             self.__send__(msg_new, answer[0][0])
             index = 1
