@@ -399,7 +399,7 @@ if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    id = B.register("./test_files/bg.png")
+    id = B.register("./test_files/alice.txt")
     # id1 = C.register("./test_files/alice.txt")
     # msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()

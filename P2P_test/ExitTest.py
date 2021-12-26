@@ -34,19 +34,31 @@ if __name__ == '__main__':
 
     print("B starts!")
     threads[0].start()
+
+    time.sleep(1)
+    print("A cancel!")
+    # A.close()
+    A.cancel(fid)
+
     time.sleep(1)
     print("C starts!")
     threads[1].start()
 
 
-    time.sleep(1)
-    print("A exit!")
-    A.close()
     # C join the network and download the file from B
 
     time.sleep(5)
     print("A come back!")
     A.register("../test_files/alice.txt")
+
+
+    for t in threads:
+        t.join()
+    print(files[0])
+    # for i in files:
+    #     if files[i] != bs:
+    #         raise Exception("Downloaded file is different with the original one")
+    # print("SUCCESS")
 
 
     # if data1 == data2:
@@ -56,3 +68,4 @@ if __name__ == '__main__':
 
     B.close()
     C.close()
+    A.close()
