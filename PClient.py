@@ -80,6 +80,9 @@ class PClient:
             content = file.read()
 
         chunk_num = int(np.ceil(len(content) / self.chunk_size))
+
+        print(chunk_num)
+
         fid = md5(content).hexdigest()
         chunks = []
         self.file[fid] = {}
@@ -132,7 +135,7 @@ class PClient:
         while True:
             try:
                 self.__send__(msg, self.tracker)
-                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 10)
+                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 1)
                 if len(answer1["result"]) > 0:
                     print("good job!")
                     break
@@ -156,7 +159,7 @@ class PClient:
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
             msg = pickle.dumps(tran)
             self.__send__(msg, self.tracker)
-            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 10)
+            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 1)
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             answer = answer0["result"]
             answer.sort(key=lambda x: x[1])
@@ -165,10 +168,11 @@ class PClient:
             index = 1
             cnt = 0
             message = {}
+
+            st = time.time()
             while True:
                 try:
-                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
-                    print("receive trunk from:", addr)
+                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 1)
                     if message["state"] == "success":
                         break
                     else:
@@ -199,6 +203,9 @@ class PClient:
                     msg_new = pickle.dumps(transfer)
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
+            ed = time.time()
+            print(f"Chunk{fcid[-3:]} cost time {ed-st}")
+
             self.register_chunk(fid, fcid)
             if fid not in self.file.keys():
                 self.file[fid] = {}
@@ -272,9 +279,19 @@ class PClient:
         :return:
         """
         while self.active:
+
             # if not self.proxy.recv_queue.empty():
+            # DEBGU
+            # print("GO")
             if self.proxy.recv_queue.empty():
-                continue
+                try:
+                    test = self.proxy.recv_queue.get(block=False)
+                    if test:
+                        print("Fuck you fake empty")
+                        self.proxy.recv_queue.put(test)
+                except Exception as e:
+                    continue
+                    # print("real empty")
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
             if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker
@@ -297,6 +314,7 @@ class PClient:
                     self.peer_respond_buffer[fcid] = SimpleQueue()
                 self.peer_respond_buffer[fcid].put((msg, frm))
 
+
     def recv_from_buffer(self, buffer, timeout=None) -> (
             bytes, (str, int)):  # choose one buffer from three to get a top message
         t = time.time()
@@ -307,12 +325,15 @@ class PClient:
         raise TimeoutError
 
     def recv_from_dict(self, buffer, fid, timeout=None):
+        timeout = None
         t = time.time()
         while not timeout or time.time() - t < timeout:
             if fid in buffer.keys():
                 if not buffer[fid].empty():
+                    # DEBUG
+                    # print(f"recv from dict cost {time.time()-t}")
                     return buffer[fid].get()
-        raise TimeoutError
+        # raise TimeoutError
 
     def provide_to_peer_tit_tat(self):
         # 在列表中或者列表没满 直接发送并加入列表
@@ -378,7 +399,7 @@ if __name__ == '__main__':
     tracker_address = ("127.0.0.1", 10086)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
-    id = B.register("./test_files/alice.txt")
+    id = B.register("./test_files/bg.png")
     time.sleep(1)
     print(id)
     # id1 = C.register("./test_files/alice.txt")
@@ -390,8 +411,12 @@ if __name__ == '__main__':
     # B.register_chunk(id, "testtest123456")
     # msg, frm = B.__recv__()
     # print(msg, frm)
+    st = time.time()
     files = C.download(id)
-    # C.close()
+    ed = time.time()
+    print("finished")
+    print(f"total time cost {ed-st}")
+    C.close()
     # pass
 
 # TODO: 1. random chunks √

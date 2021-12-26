@@ -1,3 +1,5 @@
+import time
+
 from Proxy import Proxy
 from threading import Thread
 
@@ -38,9 +40,11 @@ class Client:
 
         data = b""
         for idx in range(int(msg.decode())):
+            tst  = time.time()
             msg, frm = self.__recv__()
+            ted = time.time()
             data += msg
-            print("%s receive %d" % (self.name, idx))
+            print("%s receive %d, chunk cost time %f" % (self.name, idx, ted-tst))
 
         with open("../test_files/%s" % file, "rb") as f:
             if f.read() == data:
@@ -59,10 +63,14 @@ if __name__ == '__main__':
     # rates = [3000]
     threads = []
 
-    for i, rate in enumerate(rates):
-        c = Client("c%d" % (i + 1), rate)
-        print(c)
+    # for i, rate in enumerate(rates):
+    #     c = Client("c%d" % (i + 1), rate)
+    #     print(c)
         # threads.append(Thread(target=client_download, args=[c]))
-
+    st = time.time()
+    c = Client("test0", 100000)
+    c.download("bg.png")
+    ed = time.time()
+    print(f"SC cost time {ed-st}")
     # for thread in threads:
     #     thread.start()

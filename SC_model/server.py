@@ -58,5 +58,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    server = Server(upload_rate=30000, download_rate=1000000, port=10087)
+    server = Server(upload_rate=30000, download_rate=1000000, port=10087, packet_size=32*1024)
     server.start()
