@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../P2P_test")
+sys.path.append("../")
 from PClient import PClient
 
 tracker_address = ("127.0.0.1", 10086)
@@ -11,7 +11,7 @@ if __name__ == '__main__':
     print("A",A.proxy.port)
     print("B",B.proxy.port)
     # A register a file and B download it
-    fid = A.register("../test_files/alice.txt")
+    fid = A.register("../test_files/record.mp3")
     data1 = B.download(fid)
     # A cancel the register of the file
     A.close()

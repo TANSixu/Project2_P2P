@@ -40,7 +40,8 @@ class Tracker:
         while True:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
-            # print(msg)
+            print(msg)
+            print(self.client_rate)
             if msg["identifier"] == "REGISTER":
                 # trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
                 fid = msg["fid"]
@@ -55,7 +56,7 @@ class Tracker:
                         self.client_rate[frm] = msg["rate"]
                 # 不删去会有影响
                 # self.response("Success", frm)
-                print("Register!", self.file)
+                # print(self.file)
                 self.active.append(fid)
             elif msg["identifier"] == "QUERY":
                 # Client can use this to check who has the specific file with the given fid
@@ -91,8 +92,7 @@ class Tracker:
                     for client in registered_chunk[chunk]:
                         if client == frm:
                             registered_chunk[chunk].remove(client)
-                self.client_rate.pop(frm)
-                print(self.file)
+                #self.client_rate.pop(frm)
                 #self.response("Success", frm)
             elif msg["identifier"] == "CHANGE_RATE":
                 self.client_rate[frm] = msg["rate"]
