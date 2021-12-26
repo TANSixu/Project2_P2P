@@ -164,15 +164,23 @@ class PClient:
             answer = answer0["result"]
             answer.sort(key=lambda x: (x[1], random.random()), reverse=True)
             msg_new = pickle.dumps(transfer)
+
+            # TODO: If not answer!!!!!!!!
+            if len(answer) ==0:
+                # TODO: DEBUG
+                print("Empty record")
+                chunk_queue.put(fcid)
+                continue
+
             self.__send__(msg_new, answer[0][0])
             index = 1
             cnt = 0
-            t=time.time()
+            st=time.time()
             while True:
                 try:
                     message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
-                    print(time.time()-t)
-                    print("receive trunk from:", addr)
+                    # print(time.time()-t)
+                    print(f"{self.proxy.port}receive trunk from: {addr}")
                     if message["state"] == "success":
                         break
                     else:
@@ -204,7 +212,7 @@ class PClient:
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
             ed = time.time()
-            print(f"Chunk{fcid[-3:]} cost time {ed-st}")
+            # print(f"Chunk{fcid[-3:]} cost time {ed-st}")
 
             self.register_chunk(fid, fcid)
             self.file[fid][fcid] = message["result"]
@@ -256,12 +264,12 @@ class PClient:
         for file in self.file.keys():
             self.cancel(file)
         # self.rate_change.join()
-        """
-        End of your code
-        """
         while not self.proxy.send_queue.empty():
             #time.sleep(0.0001)
             continue
+        """
+        End of your code
+        """
         self.active = False
         self.proxy.close()
 
@@ -272,10 +280,13 @@ class PClient:
         :return:
         """
         while self.active:
-
+            # empst = time.time()
             # if not self.proxy.recv_queue.empty():
-            # DEBGU
-            # print("GO")
+            # # DEBGU
+            #     print("GO")
+            #
+            # print(f"Is empty cost time{time.time()-empst}")
+
             if self.proxy.recv_queue.empty():
                 time.sleep(0.0001)
                 continue
