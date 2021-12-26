@@ -135,13 +135,11 @@ class PClient:
         while True:
             try:
                 self.__send__(msg, self.tracker)
-                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 1)
+                answer1, _ = self.recv_from_dict(self.tracker_buffer, fid, 3)
                 if len(answer1["result"]) > 0:
-                    print("good job!")
                     break
             except TimeoutError:
                 print("Go back home, we dont have your place!")
-
         # answer format:
         # {'fcid':[(('ip',port),speed),(('ip1',port1),speed1)],}
 
@@ -151,6 +149,8 @@ class PClient:
         # random chunk
         random.shuffle(chunk_list)
         chunk_queue = SimpleQueue()
+        if fid not in self.file.keys():
+            self.file[fid] = {}
         for i in range(len(chunk_list)):
             chunk_queue.put(chunk_list[i])
         while not chunk_queue.empty():
@@ -159,20 +159,20 @@ class PClient:
             tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
             msg = pickle.dumps(tran)
             self.__send__(msg, self.tracker)
-            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 1)
+            answer0, _ = self.recv_from_dict(self.tracker_buffer, fcid, 3)
             transfer = {"identifier": "QUERY_PEER", "fid": fid, "fcid": fcid, "upload_rate": self.upload_rate}
             answer = answer0["result"]
-            answer.sort(key=lambda x: x[1])
+            answer.sort(key=lambda x: (x[1], random.random()), reverse=True)
             msg_new = pickle.dumps(transfer)
             self.__send__(msg_new, answer[0][0])
             index = 1
             cnt = 0
-            message = {}
-
-            st = time.time()
+            t=time.time()
             while True:
                 try:
-                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 1)
+                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
+                    print(time.time()-t)
+                    print("receive trunk from:", addr)
                     if message["state"] == "success":
                         break
                     else:
@@ -207,10 +207,6 @@ class PClient:
             print(f"Chunk{fcid[-3:]} cost time {ed-st}")
 
             self.register_chunk(fid, fcid)
-            if fid not in self.file.keys():
-                self.file[fid] = {}
-            if fcid not in self.file[fid].keys():
-                self.file[fid][fcid] = bytes()
             self.file[fid][fcid] = message["result"]
 
         result = []
@@ -221,13 +217,9 @@ class PClient:
         data = bytes()
         for x in result:
             data = data + x[1]
-        fo = open("{fid}.txt".format(fid=fid), "wb")
-        fo.write(data)
-        fo.close()
-
-        """
-        End of your code
-        """
+        # fo = open("{fid}.txt".format(fid=fid), "wb")
+        # fo.write(data)
+        # fo.close()
 
         return data
 
@@ -268,6 +260,7 @@ class PClient:
         End of your code
         """
         while not self.proxy.send_queue.empty():
+            #time.sleep(0.0001)
             continue
         self.active = False
         self.proxy.close()
@@ -284,14 +277,8 @@ class PClient:
             # DEBGU
             # print("GO")
             if self.proxy.recv_queue.empty():
-                try:
-                    test = self.proxy.recv_queue.get(block=False)
-                    if test:
-                        print("Fuck you fake empty")
-                        self.proxy.recv_queue.put(test)
-                except Exception as e:
-                    continue
-                    # print("real empty")
+                time.sleep(0.0001)
+                continue
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
             if msg["identifier"] == "QUERY_RESULT_INITIAL":  # message from tracker
@@ -321,7 +308,7 @@ class PClient:
         while not timeout or time.time() - t < timeout:
             if not buffer.empty():
                 return buffer.get()
-            time.sleep(0.000001)
+            time.sleep(0.0001)
         raise TimeoutError
 
     def recv_from_dict(self, buffer, fid, timeout=None):
@@ -333,7 +320,9 @@ class PClient:
                     # DEBUG
                     # print(f"recv from dict cost {time.time()-t}")
                     return buffer[fid].get()
-        # raise TimeoutError
+                #time.sleep(0.0001)
+            time.sleep(0.0001)
+        raise TimeoutError
 
     def provide_to_peer_tit_tat(self):
         # 在列表中或者列表没满 直接发送并加入列表
@@ -400,8 +389,6 @@ if __name__ == '__main__':
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     id = B.register("./test_files/bg.png")
-    time.sleep(1)
-    print(id)
     # id1 = C.register("./test_files/alice.txt")
     # msg, frm = B.__recv__()
     # msg1, frm1 = C.__recv__()
@@ -411,12 +398,11 @@ if __name__ == '__main__':
     # B.register_chunk(id, "testtest123456")
     # msg, frm = B.__recv__()
     # print(msg, frm)
-    st = time.time()
+    t = time.time()
     files = C.download(id)
-    ed = time.time()
-    print("finished")
-    print(f"total time cost {ed-st}")
+    print("total time = ", time.time() - t)
     C.close()
+    B.close()
     # pass
 
 # TODO: 1. random chunks √
