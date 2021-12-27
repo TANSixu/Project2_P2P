@@ -11,10 +11,10 @@ if __name__ == '__main__':
     print("A",A.proxy.port)
     print("B",B.proxy.port)
     # A register a file and B download it
-    fid = A.register("../test_files/bg.png")
+    fid = A.register("../test_files/alice.txt")
     data1 = B.download(fid)
     # A cancel the register of the file
-    A.close()
+    a = A.close()
     # C join the network and download the file from B
     C = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     print("C", C.proxy.port)
@@ -25,5 +25,7 @@ if __name__ == '__main__':
     else:
         raise RuntimeError
 
-    B.close()
-    C.close()
+    b = B.close()
+    c = C.close()
+
+    # print(f"A:{a}, B:{b}, C:{c}")

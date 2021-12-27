@@ -70,6 +70,7 @@ if __name__ == '__main__':
             raise Exception("Downloaded file is different with the original one")
     print("SUCCESS")
 
+
     A.close()
     C.close()
     E.close()

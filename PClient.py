@@ -35,6 +35,9 @@ class PClient:
         self.rate_change = Thread(target=self.listen_rate_change, args=())
         self.rate_change.start()
 
+        # DEBUG
+        self.cnt_pkt = 0
+
     def __send__(self, data: bytes, dst: (str, int)):
         """
         Do not modify this function!!!
@@ -183,7 +186,7 @@ class PClient:
                 try:
                     message_trunk, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 2)
                     # print(time.time()-t)
-                    print(f"{self.proxy.port}receive trunk from: {addr}")
+                    # print(f"{self.proxy.port}receive trunk from: {addr}")
                     message = {}
                     if message_trunk["state"] == "success":
                         message_list = []
@@ -226,7 +229,8 @@ class PClient:
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
             ed = time.time()
-            print(f"Chunk{fcid[-3:]} cost time {ed-st}")
+            print(f"{self.proxy.port}receive chunk{fcid[-3:]} from: {addr} time cost {ed-st}")
+            # print(f"Chunk{fcid[-3:]} cost time {ed-st}")
 
             self.register_chunk(fid, fcid)
             self.file[fid][fcid] = message["result"]
@@ -287,6 +291,9 @@ class PClient:
         self.active = False
         self.proxy.close()
 
+        #DEBUG
+        return self.cnt_pkt
+
     def listening(self):
         """
         listening to other PClient's Query,and respond answer
@@ -319,6 +326,8 @@ class PClient:
             elif msg["identifier"] == "QUERY_PEER":  # message from other PClient
                 self.peer_query_buffer.put((msg, frm))
                 self.provide_to_peer()
+                #DEBUG
+                self.cnt_pkt += 1
 
             elif msg["identifier"] == "PEER_RESPOND":
                 fcid = msg["fcid"]
