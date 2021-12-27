@@ -180,7 +180,7 @@ class PClient:
                 try:
                     message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
                     # print(time.time()-t)
-                    print(f"{self.proxy.port}receive trunk from: {addr}")
+                    # print(f"{self.proxy.port}receive trunk from: {addr}")
                     if message["state"] == "success":
                         break
                     else:
@@ -212,6 +212,7 @@ class PClient:
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
             ed = time.time()
+            print(f"{self.proxy.port}receive trunk {fcid[-3:]} from: {addr} cost time {ed-st}")
             # print(f"Chunk{fcid[-3:]} cost time {ed-st}")
 
             self.register_chunk(fid, fcid)
@@ -265,7 +266,7 @@ class PClient:
             self.cancel(file)
         # self.rate_change.join()
         while not self.proxy.send_queue.empty():
-            #time.sleep(0.0001)
+            time.sleep(0.0001)
             continue
         """
         End of your code
