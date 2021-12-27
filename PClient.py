@@ -155,7 +155,7 @@ class PClient:
             chunk_queue.put(chunk_list[i])
         start = time.time()
         while not chunk_queue.empty():
-            print("recv trunk:", time.time() - start)
+            #print("recv trunk:", time.time() - start)
             start = time.time()
             fcid = chunk_queue.get()
             # add fid
@@ -181,10 +181,21 @@ class PClient:
             st = time.time()
             while True:
                 try:
-                    message, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 10)
+                    message_trunk, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 2)
                     # print(time.time()-t)
                     print(f"{self.proxy.port}receive trunk from: {addr}")
-                    if message["state"] == "success":
+                    message = {}
+                    if message_trunk["state"] == "success":
+                        message_list = []
+                        message_list.append((message_trunk["result"],message_trunk["index"]))
+                        for i in range(3):
+                            message_trunk, addr = self.recv_from_dict(self.peer_respond_buffer, fcid, 2)
+                            message_list.append((message_trunk["result"], message_trunk["index"]))
+                        message_list.sort(key = lambda x:x[1])
+                        content = bytes()
+                        for i in range(4):
+                            content = content + message_list[int(i)][0]
+                        message["result"] = content
                         break
                     else:
                         if cnt < self.max_try_download_length:
@@ -215,7 +226,7 @@ class PClient:
                     self.__send__(msg_new, answer[index % len(answer)][0])
                     index += 1
             ed = time.time()
-            # print(f"Chunk{fcid[-3:]} cost time {ed-st}")
+            print(f"Chunk{fcid[-3:]} cost time {ed-st}")
 
             self.register_chunk(fid, fcid)
             self.file[fid][fcid] = message["result"]
@@ -391,10 +402,13 @@ class PClient:
             fid = transfer["fid"]
             fcid = transfer["fcid"]
             result = self.file[fid][fcid]
-            transfer = {"identifier": "PEER_RESPOND", "state": "success", "fid": fid, "fcid": fcid,
-                        "result": result}
-            msg = pickle.dumps(transfer)
-            self.__send__(msg, frm)
+            for i in range(4):
+                left_bound = i * self.chunk_size/4
+                right_bound = min((i + 1) * self.chunk_size/4, len(result))
+                tmp_chunk = result[int(left_bound): int(right_bound)]
+                transfer = {"identifier": "PEER_RESPOND", "state": "success", "fid": fid, "fcid": fcid,"result": tmp_chunk,"index":i}
+                msg = pickle.dumps(transfer)
+                self.__send__(msg, frm)
 
 
 if __name__ == '__main__':

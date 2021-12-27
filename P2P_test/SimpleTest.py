@@ -11,7 +11,7 @@ if __name__ == '__main__':
     print("A",A.proxy.port)
     print("B",B.proxy.port)
     # A register a file and B download it
-    fid = A.register("../test_files/record.mp3")
+    fid = A.register("../test_files/bg.png")
     data1 = B.download(fid)
     # A cancel the register of the file
     A.close()
