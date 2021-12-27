@@ -1,7 +1,7 @@
 import sys
 import time
 
-sys.path.append("../P2P_test")
+sys.path.append("../")
 from PClient import PClient
 from threading import Thread
 
