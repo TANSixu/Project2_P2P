@@ -1,7 +1,3 @@
-import time
-
-import numpy as np
-from PClient import PClient
 from Proxy import Proxy
 import pickle
 
@@ -9,8 +5,7 @@ import pickle
 class Tracker:
     def __init__(self, upload_rate=10000, download_rate=10000, port=None):
         self.proxy = Proxy(upload_rate, download_rate, port)
-        self.file = {}  # file=[{file1_1:chunk1....}{file1_2:......}]
-        self.client_rate = {}  # key:frm value:rate
+        self.file = {}
         self.active = []
 
     def __send__(self, data: bytes, dst: (str, int)):
@@ -41,9 +36,7 @@ class Tracker:
             msg, frm = self.__recv__()
             msg = pickle.loads(msg)
             print(msg)
-            print(self.client_rate)
             if msg["identifier"] == "REGISTER":
-                # trans = {"identifier":"REGISTER", "fid": fid, "fcid": fcid, "rate": self.upload_rate}
                 fid = msg["fid"]
                 if fid not in self.file.keys():
                     self.file[fid] = {}
@@ -52,15 +45,8 @@ class Tracker:
                     if item not in self.file[fid].keys():
                         self.file[fid][item] = []
                     self.file[fid][item].append(frm)
-                    if frm not in self.client_rate.keys():
-                        self.client_rate[frm] = msg["rate"]
-                # 不删去会有影响
-                # self.response("Success", frm)
-                # print(self.file)
                 self.active.append(fid)
             elif msg["identifier"] == "QUERY":
-                # Client can use this to check who has the specific file with the given fid
-                # trans = {"identifier":"QUERY", "fid": fid}
                 fid = msg["fid"]
                 keys=[]
 
@@ -72,31 +58,20 @@ class Tracker:
                 ans = pickle.dumps(transfer)
                 self.__send__(ans, frm)
             elif msg["identifier"] == "QUERY_TRUNK":
-                # tran = {"identifier": "QUERY_TRUNK", "fid": fid, "fcid": fcid}
                 fid = msg["fid"]
                 fcid = msg["fcid"]
-                cilents = self.file[fid][fcid]
-                result = []
-                for item in cilents:
-                    result.append((item, self.client_rate[item]))
-                transfer = {"identifier": "QUERY_RESULT_EACH", "fid": fid, "fcid": fcid, "result": result}
+                clients = self.file[fid][fcid]
+                transfer = {"identifier": "QUERY_RESULT_EACH", "fid": fid, "fcid": fcid, "result": clients}
                 ans = pickle.dumps(transfer)
                 self.__send__(ans, frm)
 
             elif msg["identifier"] == "CANCEL":
-                # Client can use this file to cancel the share of a file
-                # trans = {"identifier":"CANCEL", "fid": fid}
                 fid = msg["fid"]
                 registered_chunk = self.file[fid]
                 for chunk in registered_chunk.keys():
                     for client in registered_chunk[chunk]:
                         if client == frm:
                             registered_chunk[chunk].remove(client)
-                #self.client_rate.pop(frm)
-                #self.response("Success", frm)
-            elif msg["identifier"] == "CHANGE_RATE":
-                self.client_rate[frm] = msg["rate"]
-                self.response("Success", frm)
 
     def response(self, data: str, address: (str, int)):
         self.__send__(data.encode(), address)
